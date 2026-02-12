@@ -1,4 +1,4 @@
-# Vobiz Browser SDK
+# Vobiz WebRTC SDK
 
 ## Introduction
 
@@ -9,7 +9,7 @@ The Vobiz Browser SDK enables browser-based voice calling through Vobiz's voice 
 ### NPM
 
 ```shell
-npm install vobiz-browser-sdk --save 
+npm install vobiz-webrtc-sdk --save 
 ```
 
 ### Usage
@@ -17,13 +17,13 @@ npm install vobiz-browser-sdk --save
 You can import Browser SDK using ES module or TypeScript syntax
 
 ```javascript
-import Vobiz from 'vobiz-browser-sdk'
+import Vobiz from 'vobiz-webrtc-sdk'
 ```
 
 or using commonJS
 
 ```javascript
-const Vobiz = require('vobiz-browser-sdk');
+const Vobiz = require('vobiz-webrtc-sdk');
 ```
 
 ## TypeScript Support

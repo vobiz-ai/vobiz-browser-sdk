@@ -1,9 +1,9 @@
 {
-  "name": "vobiz-browser-sdk",
-  "title": "vobiz-browser-sdk",
+  "name": "vobiz-webrtc-sdk",
+  "title": "vobiz-webrtc-sdk",
   "version": "2.2.21",
   "description": "This library allows you to connect with Vobiz voice platform from browser",
-  "main": "./dist/vobizbrowsersdk.js",
+  "main": "./dist/vobiz-webrtc-sdk.js",
   "types": "index.d.ts",
   "scripts": {
     "start": "webpack-dev-server --env.development --env.VOBIZ_ENV=production",

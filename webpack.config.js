@@ -29,7 +29,7 @@ module.exports = env => {
         var hash = stats.hash;
         replaceInFile(
           path.join(
-            path.join(path.resolve(__dirname, "dist"), env.npm || env.nominify ? "vobizbrowsersdk.js" : "vobizbrowsersdk.min.js")
+            path.join(path.resolve(__dirname, "dist"), env.npm || env.nominify ? "vobiz-webrtc-sdk.js" : "vobiz-webrtc-sdk.min.js")
           ),
           "sdk_signature",
           hash
@@ -112,13 +112,13 @@ module.exports = env => {
       ],
     },
     output: env.npm ? {
-      filename: 'vobizbrowsersdk.js',
+      filename: 'vobiz-webrtc-sdk.js',
       path: path.resolve(__dirname, 'dist'),
       library: 'Vobiz',
       libraryTarget: 'umd'
     } : {
       filename: (pathData) => {
-        return pathData.chunk.name === 'main' ? env.production && !env.nominify ? 'vobizbrowsersdk.min.js' : 'vobizbrowsersdk.js' : '[name].js';
+        return pathData.chunk.name === 'main' ? env.production && !env.nominify ? 'vobiz-webrtc-sdk.min.js' : 'vobiz-webrtc-sdk.js' : '[name].js';
       },
       path: path.resolve(__dirname, 'dist'),
       library: 'Vobiz',
@@ -158,7 +158,7 @@ DtsBundlePlugin.prototype.apply = function (compiler) {
   compiler.plugin('done', function () {
     var dts = require('dts-bundle');
     dts.bundle({
-      name: 'vobiz-browser-sdk',
+      name: 'vobiz-webrtc-sdk',
       main: 'types/lib/index.d.ts',
       out: '../../index.d.ts',
       outputAsModuleFolder: false
