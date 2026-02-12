@@ -5,7 +5,7 @@ import {
   SessionIceCandidateEvent,
   SessionFailedEvent,
   SessionEndedEvent,
-} from 'upstream-jssip';
+} from 'vobiz-jssip';
 import {
   sendCallAnsweredEvent,
   onIceFailure,
@@ -128,7 +128,7 @@ export class CallSession {
   callUUID: string | null;
 
   /**
-   * call signed or not it will have these options ‘verified’ | ‘not_verified’ | ‘Not_applicable’
+   * call signed or not it will have these options â€˜verifiedâ€™ | â€˜not_verifiedâ€™ | â€˜Not_applicableâ€™
    * @private
    */
   stirShakenState: string;

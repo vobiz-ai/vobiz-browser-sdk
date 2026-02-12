@@ -1,4 +1,4 @@
-import { RTCSession, SessionIceCandidateEvent, SessionFailedEvent, SessionEndedEvent } from 'upstream-jssip';
+import { RTCSession, SessionIceCandidateEvent, SessionFailedEvent, SessionEndedEvent } from 'vobiz-jssip';
 import * as C from '../constants';
 import { Client, ExtraHeaders } from '../client';
 import { GetRTPStats } from '../stats/rtpStats';
@@ -79,7 +79,7 @@ export declare class CallSession {
      */
     callUUID: string | null;
     /**
-     * call signed or not it will have these options ‘verified’ | ‘not_verified’ | ‘Not_applicable’
+     * call signed or not it will have these options â€˜verifiedâ€™ | â€˜not_verifiedâ€™ | â€˜Not_applicableâ€™
      * @private
      */
     stirShakenState: string;

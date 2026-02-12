@@ -102,10 +102,10 @@ export declare type CandidatePairListType = {
     state: string;
     timeStamp: string;
 };
-export declare const RINGTONE_URL = "https://cdn.upstream.com/sdk/browser/audio/us-ring.mp3";
-export declare const RINGBACK_URL = "https://cdn.upstream.com/sdk/browser/audio/us-ring.mp3?v=ringback";
-export declare const CONNECT_TONE_URL = "https://cdn.upstream.com/sdk/browser/audio/connect-tone.mp3";
-export declare const SILENT_TONE_URL = "https://cdn.upstream.com/sdk/browser/audio/silent-audio.mp3";
+export declare const RINGTONE_URL = "https://audio.vobiz.ai/us-ring.mp3";
+export declare const RINGBACK_URL = "https://audio.vobiz.ai/us-ring.mp3?v=ringback";
+export declare const CONNECT_TONE_URL = "https://audio.vobiz.ai/connect-tone.mp3";
+export declare const SILENT_TONE_URL = "https://audio.vobiz.ai/silent-audio.mp3";
 export declare const SELF_VIEW_ID = "vobiz_webrtc_selfview";
 export declare const REMOTE_VIEW_ID = "vobiz_webrtc_remoteview";
 export declare const RINGBACK_ELEMENT_ID = "vobiz_ringbacktone";

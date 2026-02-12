@@ -9,7 +9,7 @@ import {
   SessionNewDtmfEvent,
   C as JSSIP_C,
   SessionNewInfoEvent,
-} from 'upstream-jssip';
+} from 'vobiz-jssip';
 import {
   RINGTONE_ELEMENT_ID,
   STUN_SERVERS,

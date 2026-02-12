@@ -1,7 +1,7 @@
 /* eslint-disable no-param-reassign */
 /* eslint-disable import/no-cycle */
 /* eslint-disable no-underscore-dangle */
-import * as SipLib from 'upstream-jssip';
+import * as SipLib from 'vobiz-jssip';
 import { Client } from '../client';
 import { LOGCAT, WS_RECONNECT_RETRY_COUNT, WS_RECONNECT_RETRY_INTERVAL } from '../constants';
 import { Logger } from '../logger';

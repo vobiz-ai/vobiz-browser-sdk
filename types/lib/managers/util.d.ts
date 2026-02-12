@@ -1,4 +1,4 @@
-import { SessionProgressEvent, SessionFailedEvent, RTCSession } from 'upstream-jssip';
+import { SessionProgressEvent, SessionFailedEvent, RTCSession } from 'vobiz-jssip';
 import { CallSession } from './callSession';
 /**
  * Prepare summary event when browser tab is about to close

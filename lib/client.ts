@@ -1,7 +1,7 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable import/no-cycle */
 import { EventEmitter } from 'events';
-import { WebSocketInterface, UA, RTCSession } from 'upstream-jssip';
+import { WebSocketInterface, UA, RTCSession } from 'vobiz-jssip';
 import * as C from './constants';
 import {
   Logger, AvailableLogMethods, AvailableFlagValues, DtmfOptions,

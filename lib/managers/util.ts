@@ -2,7 +2,7 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable import/no-cycle */
 /* eslint func-names: ["error", "as-needed"] */
-import { SessionProgressEvent, SessionFailedEvent, RTCSession } from 'upstream-jssip';
+import { SessionProgressEvent, SessionFailedEvent, RTCSession } from 'vobiz-jssip';
 import { name } from '../../package.json';
 import {
   getClientVersion,

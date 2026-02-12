@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { EventEmitter } from 'events';
-import { WebSocketInterface, UA, RTCSession } from 'upstream-jssip';
+import { WebSocketInterface, UA, RTCSession } from 'vobiz-jssip';
 import { Logger, AvailableLogMethods, AvailableFlagValues, DtmfOptions } from './logger';
 import { CallSession } from './managers/callSession';
 import { StatsSocket } from './stats/ws';

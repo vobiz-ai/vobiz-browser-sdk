@@ -11,7 +11,7 @@ import {
   SessionIceCandidateEvent,
   SessionNewDtmfEvent,
   SessionNewInfoEvent,
-} from 'upstream-jssip';
+} from 'vobiz-jssip';
 import {
   SESSION_TIMERS_EXPIRES,
   STUN_SERVERS,

@@ -29,7 +29,7 @@ module.exports = env => {
         var hash = stats.hash;
         replaceInFile(
           path.join(
-            path.join(path.resolve(__dirname, "dist"), env.npm ? "vobizbrowsersdk.js" : "vobizbrowsersdk.min.js")
+            path.join(path.resolve(__dirname, "dist"), env.npm || env.nominify ? "vobizbrowsersdk.js" : "vobizbrowsersdk.min.js")
           ),
           "sdk_signature",
           hash

@@ -1,4 +1,4 @@
-import { UserAgentNewRtcSessionEvent } from 'upstream-jssip';
+import { UserAgentNewRtcSessionEvent } from 'vobiz-jssip';
 import { Client, ExtraHeaders } from '../client';
 /**
  * Perform outgoing call.

@@ -1,5 +1,5 @@
 /* eslint func-names: ["error", "as-needed"] */
-import * as SipLib from 'upstream-jssip';
+import * as SipLib from 'vobiz-jssip';
 import * as C from '../constants';
 
 // eslint-disable-next-line import/no-cycle
