@@ -1,0 +1,1197 @@
+/* eslint-disable import/no-cycle */
+/* eslint-disable no-restricted-globals */
+/* eslint-disable no-param-reassign */
+/* eslint func-names: ["error", "as-needed"] */
+/* eslint-disable no-underscore-dangle */
+import { Client, Storage, VobizObject } from '../client';
+import * as C from '../constants';
+import { AudioLevel } from '../media/audioLevel';
+import { processStreams } from './mediaMetrics';
+import { Logger } from '../logger';
+import { CallSession } from '../managers/callSession';
+
+export interface LocalCandidate {
+  id?: string;
+  address?: string;
+  port?: string;
+  relatedAddress?: string;
+  relatedPort?: string;
+  candidateType?: string;
+  usernameFragment?: string;
+}
+
+type LocalCandidateMap = {
+  [timestamp: string]: LocalCandidate;
+};
+
+export interface RemoteCandidate {
+  id?: string;
+  address?: string;
+  port?: string;
+  candidateType?: string;
+  usernameFragment?: string;
+}
+
+export interface CandidatePair {
+  availableOutgoingBitrate?: string;
+  consentRequestsSent?: number;
+  id?: string;
+  lastPacketReceivedTimestamp?: string;
+  lastPacketSentTimestamp?: string;
+  localCandidateId?: string;
+  nominated?: string;
+  packetsDiscardedOnSend?: string;
+  packetsReceived?: string;
+  packetsSent?: string;
+  remoteCandidateId?: string;
+  requestsReceived?: number;
+  requestsSent?: number;
+  responsesReceived?: number;
+  responsesSent?: number;
+  state?: string;
+  transportId?: string;
+  writable?: boolean;
+}
+
+export interface Transport {
+  id?: string;
+  dtlsRole?: string;
+  dtlsState?: string;
+  iceRole?: string;
+  iceState?: string;
+  packetsReceived?: string;
+  packetsSent?: string;
+  selectedCandidatePairChanges?: number;
+  selectedCandidatePairId?: string;
+}
+
+export interface OutboundRTP {
+  bytesSent?: number;
+  packetsSent?: number;
+  retransmittedBytesSent?: number;
+  retransmittedPacketsSent?: number;
+  transportId?: string;
+}
+
+export interface RemoteInboundRTP {
+  fractionLost?: number;
+  packetsLost?: number;
+  roundTripTime?: string;
+  roundTripTimeMeasurements?: number;
+  totalRoundTripTime?: string;
+  transportId?: string;
+}
+
+export interface InboundRTP {
+  bytesReceived?: number;
+  jitterBufferDelay?: string;
+  jitterBufferEmittedCount?: number;
+  jitterBufferMinimumDelay?: string;
+  jitterBufferTargetDelay?: string;
+  packetsDiscarded?: number;
+  packetsLost?: number;
+  packetsReceived?: number;
+  totalSamplesDuration?: string;
+  totalSamplesReceived?: string;
+  transportId?: string
+}
+
+export interface RemoteOutboundRTP {
+  bytesSent?: number;
+  packetsSent?: number;
+  reportsSent?: number;
+  totalRoundTripTime?: string;
+  transportId?: string;
+}
+
+export interface StatsDump {
+  msg: string;
+  callUUID: string;
+  xcallUUID: string;
+  source: string;
+  timeStamp: number,
+  version: string,
+  changedCandidatedInfo: LocalCandidateMap,
+  localCandidate: LocalCandidate;
+  remoteCandidate: RemoteCandidate;
+  transport: Transport;
+  candidatePair: CandidatePair;
+  outboundRTP: OutboundRTP;
+  remoteInboundRTP: RemoteInboundRTP;
+  inboundRTP: InboundRTP;
+  remoteOutboundRTP: RemoteOutboundRTP;
+}
+
+export interface StatsLocalStream {
+  ssrc?: number;
+  packetsLost?: number;
+  bytesReceived?: number;
+  packetsReceived?: number;
+  jitter?: number | null;
+  audioLevel?: number;
+  rtt?: number | null;
+  mos?: number | null;
+  fractionLoss?: number;
+  audioInputLevel?: number;
+  audioOutputLevel?: number;
+  bytesSent?: number;
+  packetsSent?: number;
+  googJitterReceived?: number;
+  googRtt?: number;
+  googEchoCancellationReturnLossEnhancement?: number;
+  googEchoCancellationReturnLoss?: number;
+}
+
+export interface StatsRemoteStream {
+  ssrc?: number;
+  packetsLost?: number;
+  bytesReceived?: number;
+  packetsReceived?: number;
+  jitter?: number | null;
+  audioLevel?: number;
+  fractionLoss?: number;
+  audioInputLevel?: number;
+  audioOutputLevel?: number;
+  googJitterReceived?: number;
+  googRtt?: number;
+  jitterBufferDelay?: number;
+  googJitterBufferMs?: number;
+  packetsDiscarded?: number;
+}
+
+export interface StatsObject {
+  msg: string;
+  callstats_key: string;
+  local: StatsLocalStream;
+  remote: StatsRemoteStream;
+  codec: string;
+  xcallUUID: string;
+  callUUID: string;
+  corelationId: string;
+  userName: string;
+  timeStamp: number;
+  domain: string;
+  source: string;
+  version: string;
+  networkType: string;
+  networkEffectiveType: string;
+  networkDownlinkSpeed: number;
+  statsIOUsed: boolean;
+  pdd?: number;
+  mediaSetupTime?: number;
+}
+
+interface RtpStatsStream {
+  codec: string;
+  local: StatsLocalStream;
+  remote: StatsRemoteStream;
+  networkType: string;
+  gotNetworkType?: boolean;
+}
+
+const Vobiz: VobizObject = { log: Logger };
+
+/**
+ * Add two numbers.
+ * @param {Number} oldVal - previous stat value
+ * @param {Number} newVal - latest stat value
+ * @returns Sum of two numbers
+ */
+const getSum = function (oldVal: number | null, newVal: number | null): number | null {
+  if ((oldVal == null || isNaN(oldVal)) && (newVal == null || isNaN(newVal))) {
+    return null;
+  }
+  if (oldVal == null || isNaN(oldVal)) {
+    return newVal;
+  }
+  if (newVal == null || isNaN(newVal)) {
+    return oldVal;
+  }
+  return oldVal + newVal;
+};
+
+/**
+ * Collect audio levels every second for local and remote streams.
+ */
+const startAudioTimer = function (): void {
+  const getStatsRef: GetRTPStats = this;
+  getStatsRef.audioTimer = setInterval(() => {
+    // Check if the stream is active or not.
+    // If stream is not active, fetch the current active stream and assign to audio helper
+    if (getStatsRef.senderMediaStream && getStatsRef.senderMediaStream.active === false) {
+      getStatsRef.senderMediaStream.getTracks().forEach((track) => track.stop());
+      getStatsRef.senderMediaStream = null;
+      if (navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: false,
+        }).then((stream) => stream).then((stream) => {
+          getStatsRef.senderMediaStream = stream;
+          getStatsRef.localAudioLevelHelper = new AudioLevel(getStatsRef.senderMediaStream);
+        }).catch((err) => {
+          this.clientScope.emit('onMediaPermission', {
+            status: 'failure',
+            error: err.message,
+          });
+        });
+      }
+    }
+
+    if (!getStatsRef.clientScope.isCallMuted) {
+      getStatsRef.audioInputLevel = getSum(
+        getStatsRef.audioInputLevel,
+        getStatsRef.localAudioLevelHelper.getAudioLevel(),
+      );
+      getStatsRef.audioInputCount += 1;
+    }
+    getStatsRef.audioOutputLevel = getSum(
+      getStatsRef.audioOutputLevel,
+      getStatsRef.remoteAudioLevelHelper.getAudioLevel(),
+    );
+    getStatsRef.audioOutputCount += 1;
+  }, C.AUDIO_INTERVAL);
+};
+
+/**
+ * Reset audio level variables.
+ */
+const clearAudioSamples = function (): void {
+  const getStatsRef: GetRTPStats = this;
+  getStatsRef.audioInputLevel = null;
+  getStatsRef.audioOutputLevel = null;
+  getStatsRef.audioInputCount = 0;
+  getStatsRef.audioOutputCount = 0;
+};
+
+/**
+ * Convert stat value to other data type or handle not a number value.
+ * @param {Number} value - stat value
+ * @param {String} type - data type to convert the value
+ * @param {Number} defaultVal - use default value when value is not a number
+ * @param {Boolean} useDefault - decide the usage of default value
+ */
+const handleStat = function (
+  value: number | null,
+  type: string = 'int',
+  defaultVal: number | null = value,
+  useDefault: boolean = false,
+): number {
+  let result: number | any;
+  if (value == null || isNaN(value)) {
+    result = useDefault ? defaultVal : value;
+    return result;
+  }
+  result = type === 'int' ? Number(value) : Number(Number(value).toFixed(3));
+  return result;
+};
+
+/**
+ * Handle value when it is not a number.
+ * @param {Number} value - stat value
+ * @param {Number} defaultVal - use default value when value is not a number
+ * @param {Boolean} useDefault - decide the usage of default value
+ */
+const handleNull = function (
+  value?: number,
+): number | null {
+  if (value == null || isNaN(value)) {
+    return null;
+  }
+  return value;
+};
+
+/**
+ * Store previous stat packets information.
+ * @param {RtpStatsStream} stream - holds local and remote stat details
+ */
+function basePackets(stream: RtpStatsStream): void {
+  (this as GetRTPStats).packets.prePacketsReceived = handleStat(
+    handleNull(stream.remote.packetsReceived),
+  );
+  (this as GetRTPStats).packets.prePacketsSent = handleStat(
+    handleNull(stream.local.packetsSent),
+  );
+  (this as GetRTPStats).packets.preRemotePacketsLoss = handleStat(
+    handleNull(stream.remote.packetsLost),
+  );
+  (this as GetRTPStats).packets.preLocalPacketsLoss = handleStat(
+    handleNull(stream.local.packetsLost),
+  );
+}
+
+/**
+ * Calculate MOS for local or remote streams.
+ * @param {String} type - specify local or remote
+ * @param {Number} rtt - round trip time
+ * @param {Number} jitter - variation in the delay of received packets
+ * @param {Number} fractionLoss - number of packets lost divided by number of packets sent/received
+ */
+const mosCal = function (
+  mosObj: number[],
+  type: string,
+  rtt: number,
+  jitter: number,
+  fractionLoss: number,
+): void {
+  const getStatsRef: GetRTPStats = this;
+  let effectiveLatency = 0;
+  let Rval = 0;
+  const Rfactor = getStatsRef.storage.audioCodec === 'opus' ? 95 : 93.2;
+  let mos: number;
+  effectiveLatency = rtt + jitter * 2 + 10;
+  if (effectiveLatency < 160) {
+    Rval = Rfactor - effectiveLatency / 40;
+  } else {
+    Rval = Rfactor - (effectiveLatency - 120) / 10;
+  }
+  Rval -= 100 * fractionLoss * 2.5;
+  if (Rval <= 0) {
+    mos = 1;
+  } else if (Rval < 100) {
+    mos = 1 + 0.035 * Rval + 0.000007 * Rval * (Rval - 60) * (100 - Rval);
+    mos = parseFloat(mos.toFixed(3));
+  } else {
+    mos = 4.5;
+  }
+  mosObj.push(mos);
+  Vobiz.log.debug(`mos ${type}`, mos);
+
+  if (type === 'mosLocalMeasures') {
+    getStatsRef.collected.local.mos = Number(mos) || 0;
+  }
+  if (type === 'mosRemoteMeasures') {
+    getStatsRef.collected.local.mos = Math.min(
+      Number(mos) || 0,
+      getStatsRef.collected.local.mos as number,
+    );
+  }
+};
+
+/**
+ * Validate and calculate MOS for local or remote streams.
+ * @param {String} type - specify local or remote
+ * @param {Number} rtt - round trip time
+ * @param {Number} jitter - variation in the delay of received packets
+ * @param {Number} fractionLoss - number of packets lost divided by number of packets sent/received
+ */
+const processMos = function (
+  type: string,
+  rtt: number,
+  jitter: number,
+  fractionLoss: number,
+): void {
+  const getStatsRef: GetRTPStats = this;
+  const mosObj: number[] = getStatsRef.storage[type];
+  if (
+    (handleNull(jitter) == null)
+    || (handleNull(fractionLoss) == null)
+    || Number(rtt || 0) === 0
+  ) {
+    getStatsRef.collected.local.mos = null as unknown as undefined;
+    return;
+  }
+  if (getStatsRef.clientScope.browserDetails.browser === 'firefox') {
+    rtt = Number(rtt) * 1000;
+    jitter = Number(jitter) * 1000;
+  }
+  if (mosObj.length === 2) {
+    mosCal.call(getStatsRef, mosObj, type, rtt, jitter, fractionLoss);
+    const totMosObj = mosObj.filter((item) => item < 3);
+    if (totMosObj.length >= 2) {
+      getStatsRef.storage.warning[type] = true;
+    } else if (getStatsRef.storage.warning[type]) {
+      getStatsRef.storage.warning[type] = false;
+    }
+  } else {
+    mosCal.call(getStatsRef, mosObj, type, rtt, jitter, fractionLoss);
+  }
+  if (mosObj.length === 3) mosObj.splice(0, 2);
+};
+
+/**
+ * Calculate MOS and fraction loss for local and remote streams.
+ * @param {RtpStatsStream} stream - holds local and remote stat details
+ */
+const calculateStats = function (stream: RtpStatsStream): void {
+  const getStatsRef: GetRTPStats = this;
+  if (!getStatsRef.baseStatsCollected) {
+    const packetsLostLocal = handleStat(stream.local.packetsLost as number);
+    const packetsLostRemote = handleStat(stream.remote.packetsLost as number);
+    const packetsSent = handleStat(stream.local.packetsSent as number);
+    const packetsReceived = handleStat(stream.remote.packetsReceived as number) + packetsLostRemote;
+
+    if (packetsLostLocal === 0 && packetsSent === 0) {
+      getStatsRef.collected.local.fractionLoss = 0;
+    } else if (packetsSent === 0) {
+      getStatsRef.collected.local.fractionLoss = 1.0;
+    } else {
+      getStatsRef.collected.local.fractionLoss = handleStat(packetsLostLocal / packetsSent, 'float');
+    }
+
+    if (packetsLostRemote === 0 && packetsReceived === 0) {
+      getStatsRef.collected.remote.fractionLoss = 0;
+    } else if (packetsReceived === 0) {
+      getStatsRef.collected.remote.fractionLoss = 1.0;
+    } else {
+      getStatsRef.collected.remote.fractionLoss = handleStat(packetsLostRemote / packetsReceived, 'float');
+    }
+
+    basePackets.call(getStatsRef, stream);
+    getStatsRef.baseStatsCollected = true;
+    return;
+  }
+  // Calculate local packet Loss
+  const localPacketsLost = handleStat(stream.local.packetsLost as number)
+    - getStatsRef.packets.preLocalPacketsLoss;
+  const localPacketsSent = handleStat(stream.local.packetsSent as number)
+    - getStatsRef.packets.prePacketsSent;
+
+  if (localPacketsLost === 0 && localPacketsSent === 0) {
+    getStatsRef.collected.local.fractionLoss = 0;
+  } else if (localPacketsSent === 0) {
+    getStatsRef.collected.local.fractionLoss = 1.0;
+  } else {
+    getStatsRef.collected.local.fractionLoss = handleStat(localPacketsLost / localPacketsSent, 'float');
+  }
+
+  // Calculate remote packet Loss
+  const remotePacketsLost = handleStat(stream.remote.packetsLost as number)
+    - getStatsRef.packets.preRemotePacketsLoss;
+  const remotePacketsReceived = handleStat(stream.remote.packetsReceived as number)
+    - getStatsRef.packets.prePacketsReceived
+    + remotePacketsLost;
+
+  if (remotePacketsLost === 0 && remotePacketsReceived === 0) {
+    getStatsRef.collected.remote.fractionLoss = 0;
+  } else if (remotePacketsReceived === 0) {
+    getStatsRef.collected.remote.fractionLoss = 1.0;
+  } else {
+    getStatsRef.collected.remote.fractionLoss = handleStat(remotePacketsLost / remotePacketsReceived, 'float');
+  }
+
+  // Calculate Mean Opinion Score
+  processMos.call(
+    getStatsRef,
+    'mosLocalMeasures',
+    getStatsRef.collected.local.rtt,
+    getStatsRef.collected.local.jitter,
+    getStatsRef.collected.local.fractionLoss,
+  );
+  processMos.call(
+    getStatsRef,
+    'mosRemoteMeasures',
+    getStatsRef.collected.local.rtt,
+    getStatsRef.collected.remote.jitter,
+    getStatsRef.collected.remote.fractionLoss,
+  );
+  basePackets.call(getStatsRef, stream);
+};
+
+/**
+ * Send call stats event to Vobiz stats.
+ * @param {StatsObject} statMsg - Holds rtp stats and call info
+ */
+const sendStats = function (statMsg: StatsObject): void {
+  const client: Client = this;
+  if (
+    client.statsSocket
+    && client.callstatskey
+    && client._currentSession
+    && client.rtp_enabled
+    && (
+      (
+        this.options.enableQualityTracking === C.DEFAULT_ENABLE_QUALITY_TRACKING
+        && this.options.enableTracking
+      )
+      || (this.options.enableQualityTracking === C.REMOTEONLY)
+    )
+  ) {
+    client.statsSocket.send(statMsg, client);
+    if ((window as any)._VobizDevLogging) {
+      Vobiz.log.info(statMsg);
+    }
+  }
+  if (
+    client._currentSession
+    && client._currentSession.session
+    && client.browserDetails.browser === 'chrome'
+    && (
+      (
+        this.options.enableQualityTracking === C.DEFAULT_ENABLE_QUALITY_TRACKING
+        && this.options.enableTracking
+      )
+      || this.options.enableQualityTracking === C.LOCALONLY
+    )
+  ) {
+    processStreams.call(
+      client,
+      statMsg,
+      (client._currentSession.session.isMuted() as any).audio,
+    );
+  }
+};
+
+const sendStatsDump = function (stream: StatsDump): void {
+  const client: Client = this;
+  if (
+    client.statsSocket
+    && client.callstatskey
+    && client.rtp_enabled
+  ) {
+    Vobiz.log.debug(`${C.LOGCAT.CALL} | Sending CALL_STATS_DUMP Event`);
+    client.statsSocket.send(stream, client);
+  }
+};
+
+/**
+ * calculate media setup time
+ * @param {Client} client
+ */
+const calculateMediaSetupTime = (
+  client: Client,
+): number => (client.timeTakenForStats.mediaSetup
+  ? client.timeTakenForStats.mediaSetup.end! - client.timeTakenForStats.mediaSetup.init : 0);
+
+/**
+ * Prepare and send CALL_STATS event to Vobiz stats.
+ * @param {RtpStatsStream} stream - holds local and remote stat details
+ */
+const processStats = function (stream: RtpStatsStream): void {
+  const getStatsRef: GetRTPStats = this;
+  getStatsRef.collected = {
+    msg: 'CALL_STATS',
+    callstats_key: getStatsRef.callstatskey,
+    local: {},
+    remote: {},
+    codec: stream.codec,
+    xcallUUID: getStatsRef.xcallUUID,
+    callUUID: getStatsRef.callUUID,
+    corelationId: getStatsRef.corelationId,
+    userName: getStatsRef.userName,
+    timeStamp: Date.now(),
+    domain: C.DOMAIN,
+    source: C.STATS_SOURCE,
+    version: C.STATS_VERSION,
+    networkType: stream.networkType || 'unknown',
+    networkEffectiveType: (navigator as any).connection
+      ? (navigator as any).connection.effectiveType
+      : 'unknown',
+    networkDownlinkSpeed: (navigator as any).connection
+      ? (navigator as any).connection.downlink
+      : -1,
+    statsIOUsed: getStatsRef.statsioused,
+    pdd: getStatsRef.clientScope.timeTakenForStats.pdd
+      ? getStatsRef.clientScope.timeTakenForStats.pdd.end!
+      - getStatsRef.clientScope.timeTakenForStats.pdd.init
+      : 0,
+    mediaSetupTime: calculateMediaSetupTime(getStatsRef.clientScope),
+  };
+
+  getStatsRef.collected.local.audioLevel = handleStat(
+    stream.local.audioInputLevel as number,
+    'int',
+    Number(-100),
+    true,
+  );
+  getStatsRef.collected.remote.audioLevel = handleStat(
+    stream.remote.audioOutputLevel as number,
+    'int',
+    Number(-100),
+    true,
+  );
+  getStatsRef.collected.remote.jitterBufferDelay = handleStat((stream.remote as any).jitterBufferDelay, 'int', null, true);
+  getStatsRef.collected.local.googEchoCancellationReturnLoss = handleStat(stream.local.googEchoCancellationReturnLoss!, 'int', null, true);
+  getStatsRef.collected.local.googEchoCancellationReturnLossEnhancement = handleStat(stream.local.googEchoCancellationReturnLossEnhancement!, 'int', null, true);
+  getStatsRef.collected.remote.googJitterBufferMs = handleStat(stream.remote.googJitterBufferMs!, 'int', null, true);
+  getStatsRef.collected.remote.packetsDiscarded = handleStat(stream.remote.packetsDiscarded!, 'int', null, true);
+  if (getStatsRef.clientScope.browserDetails.browser === 'chrome'
+    || this.clientScope.browserDetails.browser === 'edge') {
+    getStatsRef.collected.local.rtt = handleStat(stream.local.googRtt as number, 'float');
+    getStatsRef.collected.local.jitter = handleStat(
+      stream.local.jitter as number,
+      'float',
+    );
+    getStatsRef.collected.remote.jitter = handleStat(
+      stream.remote.jitter as number,
+      'float',
+    );
+  } else if (
+    getStatsRef.clientScope.browserDetails.browser === 'firefox'
+    || getStatsRef.clientScope.browserDetails.browser === 'safari'
+  ) {
+    getStatsRef.collected.local.rtt = handleStat(stream.local.rtt as number, 'float');
+    getStatsRef.collected.local.jitter = handleStat(
+      stream.local.jitter as number,
+      'float',
+    );
+    getStatsRef.collected.remote.jitter = handleStat(
+      stream.remote.jitter as number,
+      'float',
+    );
+  }
+  getStatsRef.collected.remote.packetsReceived = handleStat(
+    stream.remote.packetsReceived as number,
+  );
+  getStatsRef.collected.local.packetsSent = handleStat(
+    stream.local.packetsSent as number,
+  );
+  getStatsRef.collected.remote.bytesReceived = handleStat(
+    stream.remote.bytesReceived as number,
+  );
+  getStatsRef.collected.local.bytesSent = handleStat(stream.local.bytesSent as number);
+  getStatsRef.collected.remote.packetsLost = handleStat(
+    stream.remote.packetsLost as number,
+  );
+  getStatsRef.collected.local.packetsLost = handleStat(
+    stream.local.packetsLost as number,
+  );
+  getStatsRef.collected.remote.ssrc = handleStat(stream.remote.ssrc as number);
+  getStatsRef.collected.local.ssrc = handleStat(stream.local.ssrc as number);
+  calculateStats.call(getStatsRef, stream);
+  sendStats.call(getStatsRef.clientScope, getStatsRef.collected);
+};
+
+/**
+ * Get codec name from sdp.
+ */
+const getCodecName = function (): string {
+  try {
+    // the format of codec information in the sdp message
+    // a=rtpmap:0 PCMU/8000
+    const codec = this.pc.remoteDescription.sdp.match(/rtpmap:.*/)[0].split(' ')[1].split('/')[0];
+    return codec;
+  } catch (e) {
+    Vobiz.log.debug(
+      'Error fetching codec from remote description message',
+      e,
+    );
+    return '';
+  }
+};
+
+/**
+ * Converts rtt and jitter to milliseconds.
+ * @param {RtpStatsStream} stream - holds local and remote stat details
+ * @returns Converted stream
+ */
+const handleSafariChanges = function (stream: RtpStatsStream): RtpStatsStream {
+  stream.local.rtt = stream.local.rtt == null ? null : Number(stream.local.rtt) * 1000;
+  stream.local.jitter = stream.local.jitter == null ? null : Number(stream.local.jitter) * 1000;
+  stream.remote.jitter = stream.remote.jitter == null ? null : Number(stream.remote.jitter)
+    * 1000;
+  return stream;
+};
+
+const checkIfIdPresent = function (candidateInfo: LocalCandidateMap, id: string)
+  : Promise<boolean> {
+  return new Promise((resolve) => {
+    let idPresent: boolean = false;
+    Object.keys(candidateInfo).forEach((timestamp) => {
+      const localCandidate = candidateInfo[timestamp];
+      if (localCandidate.id === id) {
+        idPresent = true;
+      }
+    });
+    resolve(idPresent);
+  });
+};
+
+/**
+ * Get RTP stats.
+ * @param {RtpStatsStream} stream - holds local and remote stat details
+ */
+export const handleWebRTCStats = function (stream: RtpStatsStream): void {
+  stream.codec = getCodecName.call(this);
+  const senders = this.pc.getSenders();
+  if (senders) {
+    this.rtpsender = senders[0].getStats();
+    this.rtpsender
+      .then((senderResults: any[]) => {
+        Array.from(senderResults.values()).forEach((stats: any) => {
+          if (stats.type === 'outbound-rtp') {
+            stream.local.rtt = stats.rtt == null || isNaN(stats.rtt)
+              ? stream.local.rtt
+              : stats.rtt;
+            stream.local.jitter = stats.jitter == null || isNaN(stats.jitter)
+              ? stream.local.jitter
+              : stats.jitter;
+            stream.local.packetsSent = stats.packetsSent == null || isNaN(stats.packetsSent)
+              ? stream.local.packetsSent
+              : stats.packetsSent;
+            stream.local.packetsLost = stats.packetsLost == null || isNaN(stats.packetsLost)
+              ? stream.local.packetsLost
+              : stats.packetsLost;
+            stream.local.bytesSent = stats.bytesSent == null || isNaN(stats.bytesSent)
+              ? stream.local.bytesSent
+              : stats.bytesSent;
+            stream.local.ssrc = stats.ssrc == null || isNaN(stats.ssrc)
+              ? stream.local.ssrc
+              : stats.ssrc;
+          }
+          if (stats.type === 'remote-inbound-rtp') {
+            const outboundRTCP = stats;
+            stream.local.googRtt = outboundRTCP.roundTripTime == null
+              || isNaN(outboundRTCP.roundTripTime)
+              ? stream.local.googRtt
+              : Math.round(outboundRTCP.roundTripTime * 1000);
+            stream.local.rtt = outboundRTCP.roundTripTime == null
+              || isNaN(outboundRTCP.roundTripTime)
+              ? stream.local.rtt
+              : outboundRTCP.roundTripTime;
+            stream.local.jitter = outboundRTCP.jitter == null || isNaN(outboundRTCP.jitter)
+              ? stream.local.jitter
+              : outboundRTCP.jitter;
+            stream.local.packetsLost = outboundRTCP.packetsLost == null
+              || isNaN(outboundRTCP.packetsLost)
+              ? stream.local.packetsLost
+              : outboundRTCP.packetsLost;
+          }
+          if (
+            stats.type === 'candidate-pair'
+            && (stream.local.rtt == null || isNaN(stream.local.rtt))
+          ) {
+            stream.local.rtt = stats.currentRoundTripTime;
+          }
+          if (stats.type === 'local-candidate') {
+            stream.networkType = stats.networkType;
+            const lc: LocalCandidate = {
+              id: stats.id,
+              address: stats.address,
+              port: stats.port,
+              relatedAddress: stats.relatedAddress,
+              relatedPort: stats.relatedPort,
+            };
+            if (this.localCandidateInfo) {
+              const isEmpty = Object.keys(this.localCandidateInfo).length === 0;
+              if (isEmpty) {
+                this.localCandidateInfo[stats.timestamp] = lc;
+              } else {
+                try {
+                  // Call the function and await the result
+                  checkIfIdPresent(this.localCandidateInfo, stats.id).then(
+                    (idPresent: boolean) => {
+                      // Handle the result here
+                      if (idPresent === false) {
+                        Vobiz.log.debug(`${C.LOGCAT.CALL} | Local Candidate Info Change`);
+                        this.localCandidateInfo[stats.timestamp] = lc;
+                      }
+                    },
+                  );
+                } catch (error) {
+                  // Handle any errors that may occur during the execution of checkIfIdPresent
+                  Vobiz.log.debug(`${C.LOGCAT.CALL} | Error in getStats LocalStreams API during Local Candidate Info Check `, error.message);
+                }
+              }
+            }
+          }
+          if (stats.type === 'media-source' && this.clientScope.browserDetails.browser === 'chrome') {
+            stream.local.googEchoCancellationReturnLoss = Math.floor(stats.echoReturnLoss);
+            // eslint-disable-next-line max-len
+            stream.local.googEchoCancellationReturnLossEnhancement = Math.floor(stats.echoReturnLossEnhancement);
+          }
+        });
+
+        this.rtpreceiver = this.pc.getReceivers()[0].getStats();
+        // get remote stream stats
+        let jitterBufferDelay = 0;
+        this.pc
+          .getReceivers()[0]
+          .getStats()
+          .then((receiverResults: any[]) => {
+            Array.from(receiverResults.values()).forEach((stats: any) => {
+              if (stats.type === 'media-playout') {
+                jitterBufferDelay = stats.totalPlayoutDelay;
+              }
+              if (stats.type === 'inbound-rtp') {
+                stream.remote = stats;
+                stream.local.audioInputLevel = this.audioInputLevel / this.audioInputCount;
+                stream.remote.audioOutputLevel = this.audioOutputLevel / this.audioOutputCount;
+                stream.remote.jitterBufferDelay = Math.floor((stats.jitterBufferDelay
+                  + jitterBufferDelay) / 10000);
+
+                stream.remote.googJitterBufferMs = Math.floor((stats.jitterBufferDelay
+                  / stats.jitterBufferEmittedCount) * 1000);
+
+                clearAudioSamples.call(this);
+                if (this.clientScope.browserDetails.browser === 'safari') {
+                  stream = handleSafariChanges(stream);
+                }
+
+                if (this.clientScope.browserDetails.browser === 'chrome'
+                  || this.clientScope.browserDetails.browser === 'edge') {
+                  stream.remote.jitter = stats.jitter == null ? null : Math.floor(
+                    stats.jitter * 1000,
+                  );
+                  stream.local.jitter = stream.local.jitter == null ? null : Math.floor(
+                    stream.local.jitter * 1000,
+                  );
+                }
+
+                processStats.call(this, stream);
+              }
+            });
+          })
+          .catch((e: any) => {
+            Vobiz.log.debug(`${C.LOGCAT.CALL} | Error in getStats RemoteStreams API `, e.message);
+          });
+      })
+      .catch((e: any) => {
+        Vobiz.log.debug(`${C.LOGCAT.CALL} | Error in getStats LocalStreams API `, e.message);
+      });
+  }
+};
+
+/**
+ * Collect RTP stats every 5 seconds during call for local and remote streams.
+ */
+const startStatsTimer = function (): void {
+  const getStatsRef: GetRTPStats = this;
+  getStatsRef.statsTimer = setInterval(() => {
+    const stream: RtpStatsStream = {
+      codec: '',
+      local: {},
+      remote: {},
+      networkType: '',
+    };
+    if (getStatsRef.clientScope.browserDetails.browser === 'chrome'
+      || getStatsRef.clientScope.browserDetails.browser === 'edge'
+      || getStatsRef.clientScope.browserDetails.browser === 'firefox'
+      || getStatsRef.clientScope.browserDetails.browser === 'safari') {
+      handleWebRTCStats.call(getStatsRef, stream);
+    } else {
+      Vobiz.log.error(
+        `${C.LOGCAT.LOGIN} | Vobiz Browser SDK is not supported in ${getStatsRef.clientScope.browserDetails.browser}`,
+      );
+    }
+  }, C.GETSTATS_INTERVAL);
+};
+
+/**
+ * Initialize and create timers, media streams for RTP stats.
+ */
+
+export class GetRTPStats {
+  /**
+   * Client class reference
+   */
+  clientScope: Client;
+
+  /**
+   * Represents a WebRTC connection between caller and callee
+   * @private
+   */
+  pc: RTCPeerConnection;
+
+  rtpsender: RTCStatsReport;
+
+  rtpreceiver: RTCStatsReport;
+
+  localCandidateInfo: LocalCandidateMap = {};
+
+  /**
+   * Unique identifier generated for a call by server
+   * @private
+   */
+  xcallUUID: string;
+
+  /**
+   * Identifier generated by JSSIP when a new RTCSession is created for the call
+   * @private
+   */
+  callUUID: string;
+
+  /**
+   * Identifier generated by JSSIP when a new RTCSession is created for the call
+   * @private
+   */
+  corelationId: string;
+
+  /**
+   * Username given when logging in
+   * @private
+   */
+  userName: string;
+
+  /**
+   * Holds rtp stat information which will be used in capturing media metrics
+   * @private
+   */
+  storage: Storage;
+
+  /**
+   * It is a unique identifer which is not null when callstats permission is present
+   * @private
+   */
+  callstatskey: string;
+
+  /**
+   * Set to true if user is using callstats.io
+   * @private
+   */
+  statsioused: boolean;
+
+  /**
+   * Set to true if rtp stats are collected for the first time
+   * @private
+   */
+  baseStatsCollected: boolean;
+
+  /**
+   * Holds the packet information of the previous stat
+   * @private
+   */
+  packets: {
+    prePacketsReceived?: any;
+    prePacketsSent?: any;
+    preRemotePacketsLoss?: any;
+    preLocalPacketsLoss?: any;
+  };
+
+  /**
+   * Used for capturing local media stream
+   * @private
+   */
+  senderMediaStream: MediaStream | null;
+
+  /**
+   * Used for capturing remote media stream
+   * @private
+   */
+  receiverMediaStream: MediaStream;
+
+  /**
+   * Holds the audio level instance of the sender media stream
+   * @private
+   */
+  localAudioLevelHelper: AudioLevel;
+
+  /**
+   * Holds the audio level instance of the receiver media stream
+   * @private
+   */
+  remoteAudioLevelHelper: AudioLevel;
+
+  /**
+   * Describes the audio level for the local stream
+   * @private
+   */
+  audioInputLevel: null | number;
+
+  /**
+   * Describes the audio level for the remote stream
+   * @private
+   */
+  audioOutputLevel: null | number;
+
+  /**
+   * Input audio samples collected count
+   * @private
+   */
+  audioInputCount: number;
+
+  /**
+   * Output audio samples collected count
+   * @private
+   */
+  audioOutputCount: number;
+
+  /**
+   * Timer for collecting audio levels
+   * @private
+   */
+  audioTimer: ReturnType<typeof setInterval>;
+
+  /**
+   * Timer for collecting RTP stats
+   * @private
+   */
+  statsTimer: ReturnType<typeof setInterval>;
+
+  /**
+   * Holds rtp stats and call info
+   * @private
+   */
+  collected: StatsObject;
+
+  /**
+   * @constructor
+   * @param {Object} that - client reference
+   * @private
+   */
+  constructor(client: Client) {
+    this.clientScope = client;
+    this.pc = (client._currentSession as CallSession).session.connection as RTCPeerConnection;
+    this.xcallUUID = (client._currentSession as CallSession).callUUID as string;
+    this.callUUID = (client._currentSession as CallSession).sipCallID as string;
+    this.corelationId = (client._currentSession as CallSession).sipCallID as string;
+    this.userName = client.userName as string;
+    this.storage = client.storage as Storage;
+    this.callstatskey = client.callstatskey as string;
+    this.statsioused = client.statsioused;
+    if (!this.pc || !this.callUUID) {
+      if (!this.pc) {
+        Vobiz.log.error('pc obj is null, webrtc stats error');
+      }
+      if (!this.callUUID) {
+        Vobiz.log.error('CallUUID is null, webrtc stats error');
+      }
+      return;
+    }
+    this.baseStatsCollected = false;
+    this.packets = {};
+    this.senderMediaStream = new MediaStream();
+    this.senderMediaStream.addTrack(this.pc.getSenders()[0].track as MediaStreamTrack);
+    this.receiverMediaStream = new MediaStream();
+    this.receiverMediaStream.addTrack(this.pc.getReceivers()[0].track);
+    this.localAudioLevelHelper = new AudioLevel(this.senderMediaStream);
+    this.remoteAudioLevelHelper = new AudioLevel(this.receiverMediaStream);
+    this.audioInputLevel = null;
+    this.audioOutputLevel = null;
+    this.audioInputCount = 0;
+    this.audioOutputCount = 0;
+    startAudioTimer.call(this);
+    startStatsTimer.call(this);
+  }
+
+  public sendCallStatsDump = function sendCallStatsDump(stream: StatsDump): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const senders = this.rtpsender;
+      if (senders) {
+        senders
+          .then((senderResults: any[]) => {
+            Array.from(senderResults.values()).forEach((stats: any) => {
+              if (stats.type === 'local-candidate') {
+                stream.localCandidate.id = stats.id;
+                stream.localCandidate.address = stats.address;
+                stream.localCandidate.port = stats.port;
+                stream.localCandidate.relatedAddress = stats.relatedAddress;
+                stream.localCandidate.relatedPort = stats.relatedPort;
+                stream.localCandidate.candidateType = stats.candidateType;
+                stream.localCandidate.usernameFragment = stats.usernameFragment;
+              }
+              if (stats.type === 'remote-candidate') {
+                stream.remoteCandidate.id = stats.id;
+                stream.remoteCandidate.address = stats.address;
+                stream.remoteCandidate.port = stats.port;
+                stream.remoteCandidate.candidateType = stats.candidateType;
+                stream.remoteCandidate.usernameFragment = stats.usernameFragment;
+              }
+              if (stats.type === 'transport') {
+                stream.transport.id = stats.id;
+                stream.transport.dtlsRole = stats.dtlsRole;
+                stream.transport.dtlsState = stats.dtlsState;
+                stream.transport.iceRole = stats.iceRole;
+                stream.transport.iceState = stats.iceState;
+                stream.transport.packetsReceived = stats.packetsReceived;
+                stream.transport.packetsSent = stats.packetsSent;
+                stream.transport.selectedCandidatePairChanges = stats.selectedCandidatePairChanges;
+                stream.transport.selectedCandidatePairId = stats.selectedCandidatePairId;
+              }
+              if (stats.type === 'candidate-pair') {
+                stream.candidatePair.id = stats.id;
+                stream.candidatePair.availableOutgoingBitrate = stats.availableOutgoingBitrate;
+                stream.candidatePair.consentRequestsSent = stats.consentRequestsSent;
+                // eslint-disable-next-line max-len
+                stream.candidatePair.lastPacketReceivedTimestamp = stats.lastPacketReceivedTimestamp;
+                stream.candidatePair.lastPacketSentTimestamp = stats.lastPacketSentTimestamp;
+                stream.candidatePair.localCandidateId = stats.localCandidateId;
+                stream.candidatePair.remoteCandidateId = stats.remoteCandidateId;
+                stream.candidatePair.nominated = stats.nominated;
+                stream.candidatePair.packetsDiscardedOnSend = stats.packetsDiscardedOnSend;
+                stream.candidatePair.packetsReceived = stats.packetsReceived;
+                stream.candidatePair.packetsSent = stats.packetsSent;
+                stream.candidatePair.requestsReceived = stats.requestsReceived;
+                stream.candidatePair.requestsSent = stats.requestsSent;
+                stream.candidatePair.responsesReceived = stats.responsesReceived;
+                stream.candidatePair.responsesSent = stats.responsesSent;
+                stream.candidatePair.state = stats.state;
+                stream.candidatePair.transportId = stats.transportId;
+                stream.candidatePair.writable = stats.writable;
+              }
+
+              if (stats.type === 'outbound-rtp') {
+                stream.outboundRTP.bytesSent = stats.bytesSent;
+                stream.outboundRTP.packetsSent = stats.packetsSent;
+                stream.outboundRTP.retransmittedBytesSent = stats.retransmittedBytesSent;
+                stream.outboundRTP.retransmittedPacketsSent = stats.retransmittedBytesSent;
+                stream.outboundRTP.transportId = stats.transportId;
+              }
+              if (stats.type === 'remote-inbound-rtp') {
+                stream.remoteInboundRTP.fractionLost = stats.fractionLost;
+                stream.remoteInboundRTP.packetsLost = stats.packetsLost;
+                stream.remoteInboundRTP.roundTripTime = stats.roundTripTime;
+                stream.remoteInboundRTP.roundTripTimeMeasurements = stats.roundTripTimeMeasurements;
+                stream.remoteInboundRTP.totalRoundTripTime = stats.totalRoundTripTime;
+                stream.remoteInboundRTP.transportId = stats.transportId;
+              }
+            });
+            stream.changedCandidatedInfo = this.localCandidateInfo;
+          })
+          .catch((e: any) => {
+            Vobiz.log.debug(`${C.LOGCAT.CALL} | Error during CALL_STATS_DUMP event creation `, e.message);
+          });
+      }
+      const receivers = this.rtpreceiver;
+      if (receivers) {
+        receivers
+          .then((receiverResults: any[]) => {
+            Array.from(receiverResults.values()).forEach((stats: any) => {
+              if (stats.type === 'inbound-rtp') {
+                stream.inboundRTP.bytesReceived = stats.bytesReceived;
+                stream.inboundRTP.jitterBufferDelay = stats.jitterBufferDelay;
+                stream.inboundRTP.jitterBufferEmittedCount = stats.jitterBufferEmittedCount;
+                stream.inboundRTP.jitterBufferMinimumDelay = stats.jitterBufferMinimumDelay;
+                stream.inboundRTP.jitterBufferTargetDelay = stats.jitterBufferTargetDelay;
+                stream.inboundRTP.packetsDiscarded = stats.packetsDiscarded;
+                stream.inboundRTP.packetsLost = stats.packetsLost;
+                stream.inboundRTP.packetsReceived = stats.packetsReceived;
+                stream.inboundRTP.totalSamplesDuration = stats.totalSamplesDuration;
+                stream.inboundRTP.totalSamplesReceived = stats.totalSamplesDuration;
+                stream.inboundRTP.transportId = stats.transportId;
+              }
+              if (stats.type === 'remote-outbound-rtp') {
+                stream.remoteOutboundRTP.bytesSent = stats.bytesSent;
+                stream.remoteOutboundRTP.packetsSent = stats.packetsSent;
+                stream.remoteOutboundRTP.reportsSent = stats.reportsSent;
+                stream.remoteOutboundRTP.totalRoundTripTime = stats.totalRoundTripTime;
+                stream.remoteOutboundRTP.transportId = stats.transportId;
+              }
+            });
+            Vobiz.log.debug(`${C.LOGCAT.CALL} | Created CALL_STATS_DUMP Event`);
+            sendStatsDump.call(this.clientScope, stream);
+          })
+          .catch((e: any) => {
+            Vobiz.log.debug(`${C.LOGCAT.CALL} | Error during CALL_STATS_DUMP event creation `, e.message);
+            reject(new Error('Error in getStats LocalStreams API'));
+          });
+      }
+      resolve();
+    });
+  };
+
+  /**
+   * Stop analysing audio levels for local and remote streams.
+   */
+  public stop = async (): Promise<void> => {
+    const stream: StatsDump = {
+      msg: 'CALL_STATS_DUMP',
+      callUUID: this.callUUID,
+      xcallUUID: this.xcallUUID,
+      source: C.STATS_SOURCE,
+      timeStamp: Date.now(),
+      version: C.STATS_VERSION,
+      changedCandidatedInfo: {},
+      localCandidate: {},
+      remoteCandidate: {},
+      transport: {},
+      candidatePair: {},
+      outboundRTP: {},
+      remoteInboundRTP: {},
+      inboundRTP: {},
+      remoteOutboundRTP: {},
+    };
+    this.sendCallStatsDump(stream);
+    this.localAudioLevelHelper.stop();
+    this.remoteAudioLevelHelper.stop();
+  };
+}

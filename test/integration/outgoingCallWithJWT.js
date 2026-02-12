@@ -1,0 +1,422 @@
+/* eslint-disable no-underscore-dangle */
+/* eslint-disable @typescript-eslint/naming-convention */
+import sinon from 'sinon';
+import { Client } from "../../lib/client";
+// import { Logger as vobiz_log } from "../../lib/logger";
+
+const options = {
+  debug: "ALL",
+  permOnClick: true,
+  codecs: ["OPUS", "PCMU"],
+  enableIPV6: false,
+  audioConstraints: { optional: [{ googAutoGainControl: false }] },
+  dscp: true,
+  enableTracking: true,
+  dialType: "conference",
+};
+
+const Client1 = new Client(options);
+const Client2 = new Client(options);
+
+const secondary_user = process.env.VOBIZ_ENDPOINT2_USERNAME;
+const secondary_pass = process.env.VOBIZ_ENDPOINT2_PASSWORD;
+
+let vobiz_jwt = '';
+let vobiz_jwt_without_outbound_access = '';
+
+const auth_id = process.env.vobiz_JWT_AUTHID;
+const basic_auth = process.env.vobiz_JWT_BASIC_AUTH;
+
+async function getJWTToken(outgoing, incoming) {
+  const tokenGenServerURI = new URL(`https://api.vobiz.ai/v1/Account/${auth_id}/JWT/Token`);
+
+  const payload = {
+    iss: auth_id,
+    per: {
+      voice: {
+        incoming_allow: incoming,
+        outgoing_allow: outgoing,
+      },
+    },
+    sub: "Test9034",
+  };
+  const requestBody = {
+    method: 'POST',
+    headers: new Headers({
+      'Content-Type': 'application/json',
+      Authorization: basic_auth,
+    }),
+    body: JSON.stringify(payload),
+  };
+
+  const res = await fetch(tokenGenServerURI, requestBody).catch((err) => {
+    console.error("Error in fetching the token ", err);
+    return null;
+  });
+
+  try {
+    const myJson = await res.json();
+    return myJson.token;
+  } catch (error) {
+    console.error("Error : " + error);
+    return null;
+  }
+}
+
+// eslint-disable-next-line no-undef
+describe("vobizWebSdk JWT", function () {
+  const GLOBAL_TIMEOUT = 20000;
+  this.timeout(GLOBAL_TIMEOUT);
+  const TIMEOUT = 20000;
+  let bailTimer;
+
+  // eslint-disable-next-line no-undef
+  describe("outgoing call", function () {
+    this.timeout(GLOBAL_TIMEOUT);
+
+    const events = {};
+    let spyOnSocket;
+
+    const clientEvents = [
+      "onCallRemoteRinging",
+      "onCallFailed",
+      "onCallAnswered",
+      "onCallTerminated",
+      "onCalling",
+    ];
+
+    clientEvents.forEach((i) => {
+      events[i] = { status: false };
+    });
+
+    let bail = false;
+
+    function waitUntilOutgoingCall(boolObj, callback, delay) {
+      // if delay is undefined or is not an integer
+      const newDelay = typeof delay === "undefined" || Number.isNaN(parseInt(delay, 10))
+        ? 100
+        : delay;
+
+      const check = typeof boolObj === "boolean" ? boolObj : boolObj.status;
+      setTimeout(() => {
+        if (check) {
+          callback();
+        } else {
+          waitUntilOutgoingCall(boolObj, callback, newDelay);
+        }
+      }, newDelay);
+    }
+
+    // eslint-disable-next-line no-undef
+    before(async () => {
+      Client1.on("onCallRemoteRinging", () => {
+        events.onCallRemoteRinging.status = true;
+      }); // done
+      Client1.on("onCallFailed", () => {
+        events.onCallFailed.status = true;
+      }); // done
+      Client1.on("onCallAnswered", () => {
+        events.onCallAnswered.status = true;
+      }); // done
+      Client1.on("onCallTerminated", () => {
+        events.onCallTerminated.status = true;
+      }); // done
+      Client1.on("onCalling", () => {
+        events.onCalling.status = true;
+      });
+      const token = await getJWTToken(true, true);
+      console.log("token is ", token);
+      vobiz_jwt = token;
+      Client1.loginWithAccessToken(vobiz_jwt);
+      Client2.login(secondary_user, secondary_pass);
+    });
+
+    // eslint-disable-next-line no-undef
+    beforeEach((done) => {
+      const keys = Object.keys(events);
+      // reset all the flags
+      keys.forEach((key) => {
+        events[key].status = false;
+      });
+      done();
+      clearTimeout(bailTimer);
+    });
+
+    // eslint-disable-next-line no-undef
+    after(() => {
+      // Client1.logout();
+      // Client2.logout();
+      spyOnSocket.restore();
+    });
+
+    // eslint-disable-next-line no-undef
+    // afterEach((done) => {
+    //   done();
+    // });
+
+    // #14
+    // eslint-disable-next-line no-undef
+    it("outbound call should go through and ring", (done) => {
+      console.log("outbound call should go through and ring");
+      if (bail) {
+        done(new Error("bailing"));
+      }
+      const extraHeaders = {};
+      extraHeaders["X-PH-conference"] = "true";
+      extraHeaders['X-VOBIZ-JWT'] = vobiz_jwt;
+      if (Client1.isLoggedIn) {
+        Client1.call(secondary_user, extraHeaders);
+      } else {
+        Client1.on("onLogin", () => {
+          Client1.call(secondary_user, extraHeaders);
+        });
+      }
+      const checkRing = () => {
+        waitUntilOutgoingCall(events.onCallRemoteRinging, done, 500);
+      };
+      waitUntilOutgoingCall(events.onCalling, checkRing, 500);
+      bailTimer = setTimeout(() => {
+        bail = true;
+        done(new Error("outgoing call failed"));
+      }, TIMEOUT);
+    });
+
+    // #15
+    // eslint-disable-next-line no-undef
+    it("outbound call should be answered", (done) => {
+      console.log("outbound call should be answered");
+      if (bail) {
+        done(new Error("bailing"));
+      }
+      console.log('answering the calls');
+      Client2.answer();
+      // eslint-disable-next-line @typescript-eslint/dot-notation
+      waitUntilOutgoingCall(events["onCallAnswered"], done, 500);
+      bailTimer = setTimeout(() => {
+        bail = true;
+        done(new Error("outgoing call answer failed"));
+      }, TIMEOUT);
+    });
+
+    // #16
+    // eslint-disable-next-line no-undef
+    it("outbound call should be hungup", (done) => {
+      console.log("outbound call should be hungup");
+      if (bail) {
+        done(new Error("bailing"));
+      }
+      Client1.hangup();
+      waitUntilOutgoingCall(events.onCallTerminated, done, 500);
+      bailTimer = setTimeout(() => {
+        bail = true;
+        done(new Error("outgoing call hangup failed"));
+      }, TIMEOUT);
+    });
+
+    // #17
+    // eslint-disable-next-line no-undef
+    it("outbound call should be ended without answer", (done) => {
+      console.log("outbound call should be ended without answer");
+      if (bail) {
+        done(new Error("bailing"));
+      }
+      Client1.call(secondary_user, {});
+      bailTimer = setTimeout(() => {
+        Client1.hangup();
+      }, 2000);
+      waitUntilOutgoingCall(events.onCallFailed, done, 500);
+      bailTimer = setTimeout(() => {
+        bail = true;
+        done(new Error("outgoing call end failed"));
+      }, TIMEOUT);
+    });
+
+    // #18
+    // eslint-disable-next-line no-undef
+    it("outbound call should be muted", (done) => {
+      if (bail) {
+        done(new Error("bailing"));
+      }
+
+      function mute() {
+        Client1.mute();
+        waitUntilOutgoingCall(
+          spyOnSocket.calledWith(sinon.match.has("msg", "TOGGLE_MUTE")),
+          done,
+          500,
+        );
+      }
+
+      Client1.call(secondary_user, {});
+      Client2.on("onIncomingCall", (callerId, extraHeaders2, callInfo, callerName) => {
+        spyOnSocket = sinon.spy(Client1.statsSocket, "send");
+        Client2.answer(callInfo.callUUID);
+        mute();
+      });
+      // waitUntilOutgoingCall(events.onCalling, mute, 500);
+      bailTimer = setTimeout(() => {
+        bail = true;
+        done(new Error("outgoing call mute failed"));
+      }, TIMEOUT);
+    });
+
+    // #19
+    // eslint-disable-next-line no-undef
+    it("outbound call should be unmuted", (done) => {
+      if (bail) {
+        done(new Error("bailing"));
+      }
+
+      spyOnSocket.resetHistory();
+
+      Client1.unmute();
+      waitUntilOutgoingCall(
+        spyOnSocket.calledWith(sinon.match.has("msg", "TOGGLE_MUTE")),
+        done,
+        500,
+      );
+
+      bailTimer = setTimeout(() => {
+        bail = true;
+        done(new Error("outgoing call end failed"));
+      }, TIMEOUT);
+    });
+
+    // #20
+    // eslint-disable-next-line no-undef
+    it("outbound call should send feedback", (done) => {
+      if (bail) {
+        done(new Error("bailing"));
+      }
+
+      spyOnSocket.resetHistory();
+      spyOnSocket = sinon.spy(Client2.statsSocket, "send");
+      // spyOnSocket = sinon.spy(Client2.statsSocket, "send");
+      Client2.submitCallQualityFeedback(
+        Client2._lastCallSession.callUUID,
+        "5",
+        [],
+        "",
+        false,
+      ).then(() => {
+        waitUntilOutgoingCall(
+          spyOnSocket.calledWith(sinon.match.has("msg", "FEEDBACK")),
+          done,
+          500,
+        );
+      }).catch(() => {
+        done(new Error('outbound call should send feedback failed'));
+      });
+    });
+  });
+
+  // eslint-disable-next-line no-undef
+  describe("outgoing call shoudn't work if permission not granted", function () {
+    this.timeout(GLOBAL_TIMEOUT);
+
+    const events = {};
+    let spyOnSocket;
+
+    const clientEvents = [
+      "onCallRemoteRinging",
+      "onCallFailed",
+      "onCallAnswered",
+      "onCallTerminated",
+      "onCalling",
+      "onPermissionDenied",
+    ];
+
+    clientEvents.forEach((i) => {
+      events[i] = { status: false };
+    });
+
+    let bail = false;
+
+    function waitUntilOutgoingCall(boolObj, callback, delay) {
+      // if delay is undefined or is not an integer
+      const newDelay = typeof delay === "undefined" || Number.isNaN(parseInt(delay, 10))
+        ? 100
+        : delay;
+
+      const check = typeof boolObj === "boolean" ? boolObj : boolObj.status;
+      setTimeout(() => {
+        if (check) {
+          callback();
+        } else {
+          waitUntilOutgoingCall(boolObj, callback, newDelay);
+        }
+      }, newDelay);
+    }
+
+    // eslint-disable-next-line no-undef
+    before(async () => {
+      Client1.on("onCallRemoteRinging", () => {
+        events.onCallRemoteRinging.status = true;
+      }); // done
+      Client1.on("onCallFailed", () => {
+        events.onCallFailed.status = true;
+      }); // done
+      Client1.on("onCallAnswered", () => {
+        events.onCallAnswered.status = true;
+      }); // done
+      Client1.on("onCallTerminated", () => {
+        events.onCallTerminated.status = true;
+      }); // done
+      Client1.on("onCalling", () => {
+        events.onCalling.status = true;
+      }); // done
+      Client1.on("onPermissionDenied", () => {
+        events.onPermissionDenied.status = true;
+      }); // done
+
+      const token = await getJWTToken(false, true);
+      console.log("token is ", token);
+      vobiz_jwt_without_outbound_access = token;
+      Client1.loginWithAccessToken(vobiz_jwt_without_outbound_access);
+      Client2.login(secondary_user, secondary_pass);
+    });
+
+    // eslint-disable-next-line no-undef
+    beforeEach((done) => {
+      const keys = Object.keys(events);
+      // reset all the flags
+      keys.forEach((key) => {
+        events[key].status = false;
+      });
+      done();
+      clearTimeout(bailTimer);
+    });
+
+    // eslint-disable-next-line no-undef
+    after(() => {
+      Client1.logout();
+      Client2.logout();
+      // spyOnSocket.restore();
+    });
+
+    // #14
+    // eslint-disable-next-line no-undef
+    it("outbound call should failed", (done) => {
+      if (bail) {
+        done(new Error("bailing"));
+      }
+      const extraHeaders = {};
+      extraHeaders["X-PH-conference"] = "true";
+      extraHeaders['X-VOBIZ-JWT'] = vobiz_jwt_without_outbound_access;
+
+      if (Client1.isLoggedIn) {
+        Client1.call(secondary_user, extraHeaders);
+      } else {
+        Client1.on("onLogin", () => {
+          Client1.call(secondary_user, extraHeaders);
+        });
+      }
+      waitUntilOutgoingCall(events.onPermissionDenied, done, 500);
+
+      bailTimer = setTimeout(() => {
+        bail = false;
+        done(new Error("outgoing call failed"));
+      }, TIMEOUT);
+    });
+  });
+});
