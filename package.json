@@ -1,12 +1,13 @@
 {
   "name": "vobiz-webrtc-sdk",
   "title": "vobiz-webrtc-sdk",
-  "version": "2.2.21",
+  "version": "1.0.0",
   "description": "This library allows you to connect with Vobiz voice platform from browser",
   "main": "./dist/vobiz-webrtc-sdk.js",
   "types": "index.d.ts",
   "scripts": {
     "start": "webpack-dev-server --env.development --env.VOBIZ_ENV=production",
+    "prepare": "npm run build:npm",
     "build:es5": "babel lib -d types/lib",
     "build:ts": "./node_modules/typescript/bin/tsc",
     "clean:ts": "rm -rf types",
