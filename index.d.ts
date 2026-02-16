@@ -3,8 +3,8 @@
 //   ../../events
 //   ../../vobiz-jssip
 
-declare module 'vobiz-browser-sdk' {
-    import { Client, ConfiguationOptions } from 'vobiz-browser-sdk/client';
+declare module 'vobiz-webrtc-sdk' {
+    import { Client, ConfiguationOptions } from 'vobiz-webrtc-sdk/client';
     class Vobiz {
         client: Client;
         constructor(options: ConfiguationOptions);
@@ -12,15 +12,15 @@ declare module 'vobiz-browser-sdk' {
     export default Vobiz;
 }
 
-declare module 'vobiz-browser-sdk/client' {
+declare module 'vobiz-webrtc-sdk/client' {
     import { EventEmitter } from 'events';
     import { WebSocketInterface, UA, RTCSession } from 'vobiz-jssip';
-    import { Logger, AvailableLogMethods, AvailableFlagValues, DtmfOptions } from 'vobiz-browser-sdk/logger';
-    import { CallSession } from 'vobiz-browser-sdk/managers/callSession';
-    import { StatsSocket } from 'vobiz-browser-sdk/stats/ws';
-    import { OutputDevices, InputDevices, RingToneDevices } from 'vobiz-browser-sdk/media/audioDevice';
-    import { NoiseSuppression } from 'vobiz-browser-sdk/rnnoise/NoiseSuppression';
-    import { LoggerUtil } from 'vobiz-browser-sdk/utils/loggerUtil';
+    import { Logger, AvailableLogMethods, AvailableFlagValues, DtmfOptions } from 'vobiz-webrtc-sdk/logger';
+    import { CallSession } from 'vobiz-webrtc-sdk/managers/callSession';
+    import { StatsSocket } from 'vobiz-webrtc-sdk/stats/ws';
+    import { OutputDevices, InputDevices, RingToneDevices } from 'vobiz-webrtc-sdk/media/audioDevice';
+    import { NoiseSuppression } from 'vobiz-webrtc-sdk/rnnoise/NoiseSuppression';
+    import { LoggerUtil } from 'vobiz-webrtc-sdk/utils/loggerUtil';
     export interface VobizObject {
             log: typeof Logger;
             sendEvents?: (obj: any, session: CallSession) => void;
@@ -658,9 +658,9 @@ declare module 'vobiz-browser-sdk/client' {
     }
 }
 
-declare module 'vobiz-browser-sdk/logger' {
-    import { Client } from 'vobiz-browser-sdk/client';
-    import { LoggerUtil } from 'vobiz-browser-sdk/utils/loggerUtil';
+declare module 'vobiz-webrtc-sdk/logger' {
+    import { Client } from 'vobiz-webrtc-sdk/client';
+    import { LoggerUtil } from 'vobiz-webrtc-sdk/utils/loggerUtil';
     export type AvailableLogMethods = 'INFO' | 'DEBUG' | 'WARN' | 'ERROR' | 'ALL' | 'OFF' | 'ALL-PLAIN';
     export type AvailableFlagValues = 'ALL' | 'NONE' | 'REMOTEONLY' | 'LOCALONLY';
     export interface DtmfOptions {
@@ -698,11 +698,11 @@ declare module 'vobiz-browser-sdk/logger' {
     export {};
 }
 
-declare module 'vobiz-browser-sdk/managers/callSession' {
+declare module 'vobiz-webrtc-sdk/managers/callSession' {
     import { RTCSession, SessionIceCandidateEvent, SessionFailedEvent, SessionEndedEvent } from 'vobiz-jssip';
-    import * as C from 'vobiz-browser-sdk/constants';
-    import { Client, ExtraHeaders } from 'vobiz-browser-sdk/client';
-    import { GetRTPStats } from 'vobiz-browser-sdk/stats/rtpStats';
+    import * as C from 'vobiz-webrtc-sdk/constants';
+    import { Client, ExtraHeaders } from 'vobiz-webrtc-sdk/client';
+    import { GetRTPStats } from 'vobiz-webrtc-sdk/stats/rtpStats';
     export interface CallSessionOptions {
             callUUID?: string;
             sipCallID: string | null;
@@ -991,8 +991,8 @@ declare module 'vobiz-browser-sdk/managers/callSession' {
     }
 }
 
-declare module 'vobiz-browser-sdk/stats/ws' {
-    import { Client } from 'vobiz-browser-sdk/client';
+declare module 'vobiz-webrtc-sdk/stats/ws' {
+    import { Client } from 'vobiz-webrtc-sdk/client';
     /**
         * Initialize stats socket.
         */
@@ -1053,9 +1053,9 @@ declare module 'vobiz-browser-sdk/stats/ws' {
     }
 }
 
-declare module 'vobiz-browser-sdk/media/audioDevice' {
-    import { Client } from 'vobiz-browser-sdk/client';
-    import { DeviceAudioInfo } from 'vobiz-browser-sdk/stats/nonRTPStats';
+declare module 'vobiz-webrtc-sdk/media/audioDevice' {
+    import { Client } from 'vobiz-webrtc-sdk/client';
+    import { DeviceAudioInfo } from 'vobiz-webrtc-sdk/stats/nonRTPStats';
     export interface RingToneDevices {
             set: (id: string) => void;
             get: () => string;
@@ -1174,8 +1174,8 @@ declare module 'vobiz-browser-sdk/media/audioDevice' {
     export const detectDeviceChange: () => void;
 }
 
-declare module 'vobiz-browser-sdk/rnnoise/NoiseSuppression' {
-    import { Client } from "vobiz-browser-sdk/client";
+declare module 'vobiz-webrtc-sdk/rnnoise/NoiseSuppression' {
+    import { Client } from "vobiz-webrtc-sdk/client";
     export class NoiseSuppression {
         noiseSupressionRunning: boolean;
         started: boolean;
@@ -1192,8 +1192,8 @@ declare module 'vobiz-browser-sdk/rnnoise/NoiseSuppression' {
     }
 }
 
-declare module 'vobiz-browser-sdk/utils/loggerUtil' {
-    import { Client } from "vobiz-browser-sdk/client";
+declare module 'vobiz-webrtc-sdk/utils/loggerUtil' {
+    import { Client } from "vobiz-webrtc-sdk/client";
     export class LoggerUtil {
         constructor(client: Client);
         static getInstance(): LoggerUtil | null;
@@ -1204,7 +1204,7 @@ declare module 'vobiz-browser-sdk/utils/loggerUtil' {
     }
 }
 
-declare module 'vobiz-browser-sdk/constants' {
+declare module 'vobiz-webrtc-sdk/constants' {
     export const DOMAIN = "registrar.vobiz.ai";
     export const WS_SERVERS: string[];
     export const DEFAULT_LOG_LEVEL = "INFO";
@@ -1359,9 +1359,9 @@ declare module 'vobiz-browser-sdk/constants' {
     export const WS_RECONNECT_RETRY_INTERVAL = 15000;
 }
 
-declare module 'vobiz-browser-sdk/stats/rtpStats' {
-    import { Client, Storage } from 'vobiz-browser-sdk/client';
-    import { AudioLevel } from 'vobiz-browser-sdk/media/audioLevel';
+declare module 'vobiz-webrtc-sdk/stats/rtpStats' {
+    import { Client, Storage } from 'vobiz-webrtc-sdk/client';
+    import { AudioLevel } from 'vobiz-webrtc-sdk/media/audioLevel';
     export interface LocalCandidate {
             id?: string;
             address?: string;
@@ -1668,10 +1668,10 @@ declare module 'vobiz-browser-sdk/stats/rtpStats' {
     export {};
 }
 
-declare module 'vobiz-browser-sdk/stats/nonRTPStats' {
-    import { CallSession, SignallingInfo, MediaConnectionInformation } from 'vobiz-browser-sdk/managers/callSession';
-    import { ConfiguationOptions } from 'vobiz-browser-sdk/client';
-    import { FeedbackObject } from 'vobiz-browser-sdk/utils/feedback';
+declare module 'vobiz-webrtc-sdk/stats/nonRTPStats' {
+    import { CallSession, SignallingInfo, MediaConnectionInformation } from 'vobiz-webrtc-sdk/managers/callSession';
+    import { ConfiguationOptions } from 'vobiz-webrtc-sdk/client';
+    import { FeedbackObject } from 'vobiz-webrtc-sdk/utils/feedback';
     export interface AnsweredEvent {
             msg: string;
             info: string;
@@ -1828,7 +1828,7 @@ declare module 'vobiz-browser-sdk/stats/nonRTPStats' {
     export const onToggleMute: (callSession: CallSession, action: string) => void;
 }
 
-declare module 'vobiz-browser-sdk/media/audioLevel' {
+declare module 'vobiz-webrtc-sdk/media/audioLevel' {
     /**
         * Analyse the audio level for a stream(local/remote).
         */
@@ -1875,7 +1875,7 @@ declare module 'vobiz-browser-sdk/media/audioLevel' {
     }
 }
 
-declare module 'vobiz-browser-sdk/utils/feedback' {
+declare module 'vobiz-webrtc-sdk/utils/feedback' {
     export interface FeedbackObject {
         overall: number;
         comment: string;

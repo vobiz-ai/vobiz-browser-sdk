@@ -4,7 +4,7 @@
 
 // Signalling
 export const DOMAIN = 'registrar.vobiz.ai';
-export const WS_SERVERS = ['wss://registrar.vobiz.ai'];
+export const WS_SERVERS = ['wss://registrar.vobiz.ai:5063'];
 
 // SDK option settings
 export const DEFAULT_LOG_LEVEL = 'INFO';

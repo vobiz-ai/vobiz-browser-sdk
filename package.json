@@ -10,7 +10,7 @@
     "prepare": "npm run build:npm",
     "build:es5": "babel lib -d types/lib",
     "build:ts": "./node_modules/typescript/bin/tsc",
-    "clean:ts": "rm -rf types",
+    "clean:ts": "node -e \"var fs=require('fs'); if(fs.existsSync('types')) fs.rmdirSync('types', {recursive:true})\"",
     "build:me": "webpack lib/rnnoise/workletProcessor.ts ./bundling.js",
     "build:webpack": "webpack  --env.production --env.VOBIZ_ENV=production",
     "build": "npm-run-all build:webpack clean:ts",
