@@ -1,47 +1,78 @@
 # Quick Start Guide: Vobiz WebRTC SDK
 
-Follow these steps to build the SDK and test voice calling.
+Follow these steps to build the SDK, run tests, and verify voice calling.
 
-## 1. Install & Build
-First, install dependencies and build the SDK distribution files.
+---
+
+## 🏗️ Build Commands
+
+Depending on your environment, use the appropriate build command:
+
+| Command | Description | Output File |
+| :--- | :--- | :--- |
+| `npm run build` | **Standard Build**: Production optimized (minified). Cleans types. | `dist/vobiz-webrtc-sdk.min.js` |
+| `npm run build:nominify` | **Debug Build**: Non-minified version for easier debugging. | `dist/vobiz-webrtc-sdk.js` |
+| `npm run build:npm` | **NPM Build**: Specifically for publishing to registry. | `dist/vobiz-webrtc-sdk.js` |
+| `npm run build:ts` | **Typescript Only**: Only transpiles TS to JS. | `types/` |
+| `npx http-server .` | **Serve**: Start local server for browser testing. | N/A |
+
+---
+
+## 🧪 Test Commands
+
+The SDK uses `Jest` for unit tests and `Karma` for integration tests.
 
 ```bash
-# Install dependencies
-npm install
+# Run ALL tests (Unit + Integration)
+npm run test
 
-# Build the SDK (creates dist/vobiz-webrtc-sdk.js)
-npm run build
+# Run only Unit Tests
+npm run test:unit
+
+# Run only Integration Tests (Requires Chrome)
+npm run test:integration
 ```
 
-## 2. Run Sample App
-Start a local web server to run the included test console.
+---
 
-```bash
-# Start server in the current directory
-npx http-server .
-```
+## 🚀 How to Test in Browser (Sample App)
 
-Once running, open your browser to:  
-👉 **[http://127.0.0.1:8080/sample/index.html](http://127.0.0.1:8080/sample/index.html)**  
-*(Port might be 8081 if 8080 is taken. Check terminal output)*
+The repository includes a **Test Console** to verify SIP registration and calls.
 
-## 3. Test Registration
-Use the **Test Console** to verify the connection to `registrar.vobiz.ai`.
+1.  **Start a local server**:
+    ```bash
+    npx http-server .
+    ```
+2.  **Open in Browser**:  
+    Navigate to: [http://127.0.0.1:8080/sample/index.html](http://127.0.0.1:8080/sample/index.html)
 
-**Credentials:**
-*   **Username:** `test242843159083241034285`
-*   **Password:** `d00f5d5217896fb7fd601412cb890830`
+3.  **Authentication Test**:
+    - **Username**: `testing04949394196792859672850`
+    - **Password**: `testing`
+    - Click **"Connect & Register"**. Verify status turns **Green**.
 
-**Steps:**
-1.  Enter the Username and Password above.
-2.  Click **"Connect & Register"**.
-3.  Look for the **"Registered"** status indicator (Green dot).
-4.  Check the logs at the bottom for `✅ Successfully registered with Vobiz!`.
+---
 
-## 4. Test Calling (Echo)
-To verify audio, you can dial a test echo number (if configured) or another active Vobiz endpoint.
+## ✅ Testing Checklist
 
-1.  Enter Destination: `sip:echo@registrar.vobiz.ai` (or valid endpoint).
-2.  Click **"Call"**.
-3.  Allow Microphone permission.
-4.  Speak and verify you hear audio back.
+Validate these features before going to production:
+
+### 1. Connection & Signaling
+- [ ] **WSS Handshake**: Connects to `wss://registrar.vobiz.ai:5063` without errors.
+- [ ] **SIP Registration**: Status turns "Registered" within 2-3 seconds.
+- [ ] **Challenge Response**: Verify Digest Authentication (MD5) is accepted by Kamailio.
+- [ ] **Keep-Alives**: Verify the connection stays open during idle time.
+
+### 2. Basic Calling
+- [ ] **Outgoing Call**: Can dial a number or SIP-URI.
+- [ ] **Incoming Call**: Modal appears when an external number calls the endpoint.
+- [ ] **Answer/Hangup**: Call state changes correctly in the UI.
+
+### 3. Media & Audio
+- [ ] **Mic Permission**: Browser prompts for microphone access.
+- [ ] **Level Indicator**: Verify the audio activity bar moves when speaking.
+- [ ] **Echo Test**: Dial `sip:echo@registrar.vobiz.ai` to verify loopback audio quality.
+
+### 4. Branding & Logs
+- [ ] **Logging**: Open DevTools Console. Ensure logs are tagged with `VobizSDK`.
+- [ ] **Clean Branding**: No references to "upstream" in log outputs or SDK errors.
