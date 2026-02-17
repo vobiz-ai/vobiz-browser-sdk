@@ -27,3 +27,16 @@ npm-debug.log*
 # Temp files
 build_output.txt
 *.tmp
+
+# Local Dev & Deployment
+deploy/
+prepare-deploy.ps1
+answer_url.js
+ngrok.exe
+ngrok.log
+vobiz-jssip/
+# AWS & Deployment Configs
+cf_config.json
+bucket_policy.json
+build_error.log
+env.js

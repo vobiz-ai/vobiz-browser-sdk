@@ -94,6 +94,50 @@ function doLogin() {
             log(`✅ Call answered! (${callInfo?.callUUID || ''})`, 'success');
             setStatus('In Call', 'in-call');
             showInCallUI();
+
+            // Workaround: Manually attach remote stream
+            setTimeout(() => {
+                const remoteAudio = document.getElementById('remoteAudio');
+
+                // Try getting stream from the SDK's remote view
+                let stream = null;
+                if (vobiz && vobiz.client && vobiz.client.remoteView) {
+                    stream = vobiz.client.remoteView.srcObject;
+                }
+
+                // Fallback: check peer connection receivers
+                if (!stream && vobiz && vobiz.client) {
+                    const pc = vobiz.client.getPeerConnection().pc;
+                    if (pc) {
+                        const receivers = pc.getReceivers();
+                        const audioReceiver = receivers.find(r => r.track && r.track.kind === 'audio');
+                        if (audioReceiver && audioReceiver.track) {
+                            stream = new MediaStream([audioReceiver.track]);
+                            log('🔊 Found audio track from PC receivers', 'info');
+                        }
+                    }
+                }
+
+                if (stream && remoteAudio) {
+                    remoteAudio.srcObject = stream;
+                    remoteAudio.play().catch(e => log('Error playing audio: ' + e.message, 'error'));
+                    log('🔊 SDK has remote stream, attaching to backup audio element...', 'info');
+                } else {
+                    log('⚠️ Could not find remote stream to attach', 'warning');
+                }
+            }, 1500);
+
+            // Workaround: Explicitly attach stream if SDK didn't
+            setTimeout(() => {
+                const remoteAudio = document.getElementById('remoteAudio');
+                if (vobiz.client.remoteView && vobiz.client.remoteView.srcObject) {
+                    log('🔊 SDK has remote stream, attaching to backup audio element...', 'info');
+                    remoteAudio.srcObject = vobiz.client.remoteView.srcObject;
+                    remoteAudio.play().catch(e => log(`Autoplay error: ${e.message}`, 'error'));
+                } else {
+                    log('⚠️ No remote stream found on SDK remoteView', 'warning');
+                }
+            }, 1000); // Wait for media to settle
         });
 
         vobiz.client.on('onCallTerminated', (callInfo) => {
@@ -134,6 +178,9 @@ function doLogin() {
 
         // Perform login
         vobiz.client.login(username, password);
+
+        // Debug: Expose vobiz to window for console inspection
+        window.vobiz = vobiz;
 
     } catch (err) {
         log(`Error initializing SDK: ${err.message}`, 'error');

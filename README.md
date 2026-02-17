@@ -17,13 +17,20 @@ npm install vobiz-webrtc-sdk --save
 You can import Browser SDK using ES module or TypeScript syntax
 
 ```javascript
-import Vobiz from 'vobiz-webrtc-sdk'
+import Vobiz from 'vobiz-webrtc-sdk';
 ```
 
-or using commonJS
+or using CommonJS
 
 ```javascript
 const Vobiz = require('vobiz-webrtc-sdk');
+```
+
+## Prerequisite: Audio Element
+To ensure reliable audio playback across all browsers, you must include an audio element in your HTML with the id `remoteAudio`.
+
+```html
+<audio id="remoteAudio" autoplay></audio>
 ```
 
 ## TypeScript Support
@@ -46,13 +53,13 @@ You can create a minified or non-minified build:
 npm run build
 ```
 
-This command creates a minified, production-ready build at dist/vobizbrowsersdk.min.js.
+This command creates a minified, production-ready build at `dist/vobiz-webrtc-sdk.min.js`.
 
 ```shell
 npm run build:nominify
 ```
 
-This command creates a non-minified version of the build file at dist/vobizbrowsersdk.js.
+This command creates a non-minified version of the build file at `dist/vobiz-webrtc-sdk.js`.
 
 ### Start the development server
 
@@ -60,7 +67,7 @@ This command creates a non-minified version of the build file at dist/vobizbrows
 npm start
 ```
 
-This command builds the SDK file and attaches it to port 9000 — http://localhost:9000/vobizbrowsersdk.js. The project uses a [webpack-dev-server](https://github.com/webpack/webpack-dev-server) that helps with live reloading.
+This command builds the SDK file and attaches it to port 9000 — `http://localhost:9000/vobiz-webrtc-sdk.js`. The project uses a [webpack-dev-server](https://github.com/webpack/webpack-dev-server) that helps with live reloading.
 
 ## Testing
 

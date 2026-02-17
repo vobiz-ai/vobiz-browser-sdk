@@ -1,0 +1,95 @@
+{
+    "CallerReference": "vobiz-sdk-demo-ref-1",
+    "Aliases": {
+        "Quantity": 0
+    },
+    "DefaultRootObject": "index.html",
+    "Origins": {
+        "Quantity": 1,
+        "Items": [
+            {
+                "Id": "S3-vobiz-webrtc-sdk",
+                "DomainName": "vobiz-webrtc-sdk.s3.ap-south-1.amazonaws.com",
+                "OriginPath": "",
+                "CustomHeaders": {
+                    "Quantity": 0
+                },
+                "S3OriginConfig": {
+                    "OriginAccessIdentity": ""
+                }
+            }
+        ]
+    },
+    "DefaultCacheBehavior": {
+        "TargetOriginId": "S3-vobiz-webrtc-sdk",
+        "ForwardedValues": {
+            "QueryString": false,
+            "Cookies": {
+                "Forward": "none"
+            },
+            "Headers": {
+                "Quantity": 0
+            },
+            "QueryStringCacheKeys": {
+                "Quantity": 0
+            }
+        },
+        "TrustedSigners": {
+            "Enabled": false,
+            "Quantity": 0
+        },
+        "ViewerProtocolPolicy": "redirect-to-https",
+        "MinTTL": 0,
+        "AllowedMethods": {
+            "Quantity": 2,
+            "Items": [
+                "HEAD",
+                "GET"
+            ],
+            "CachedMethods": {
+                "Quantity": 2,
+                "Items": [
+                    "HEAD",
+                    "GET"
+                ]
+            }
+        },
+        "SmoothStreaming": false,
+        "DefaultTTL": 86400,
+        "MaxTTL": 31536000,
+        "Compress": true,
+        "LambdaFunctionAssociations": {
+            "Quantity": 0
+        },
+        "FieldLevelEncryptionId": ""
+    },
+    "CacheBehaviors": {
+        "Quantity": 0
+    },
+    "CustomErrorResponses": {
+        "Quantity": 0
+    },
+    "Comment": "Vobiz SDK Demo Distribution",
+    "Logging": {
+        "Enabled": false,
+        "IncludeCookies": false,
+        "Bucket": "",
+        "Prefix": ""
+    },
+    "PriceClass": "PriceClass_All",
+    "Enabled": true,
+    "ViewerCertificate": {
+        "CloudFrontDefaultCertificate": true,
+        "MinimumProtocolVersion": "TLSv1.2_2021",
+        "CertificateSource": "cloudfront"
+    },
+    "Restrictions": {
+        "GeoRestriction": {
+            "RestrictionType": "none",
+            "Quantity": 0
+        }
+    },
+    "WebACLId": "",
+    "HttpVersion": "http2",
+    "IsIPV6Enabled": true
+}

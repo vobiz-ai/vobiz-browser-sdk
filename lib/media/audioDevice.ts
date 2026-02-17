@@ -951,11 +951,14 @@ export const outputDevices = ((): OutputDevices => ({
     const speakerElement = document.querySelector(
       '[data-devicetype="speakerDevice"]',
     ) as any;
-    if (speakerElement && speakerElement.sinkId) {
-      return speakerElement.sinkId;
-    } else {
-      Vobiz.log.warn(`${LOGCAT.CALL} | No speaker element found`);
+    if (speakerElement) {
+      if (typeof speakerElement.sinkId !== 'undefined') {
+        return speakerElement.sinkId;
+      }
+      // Browser doesn't support sinkId (e.g. Firefox, Safari)
+      return '';
     }
+    Vobiz.log.warn(`${LOGCAT.CALL} | No speaker element found`);
     return null;
   },
   reset() {

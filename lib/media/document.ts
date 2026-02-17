@@ -146,6 +146,7 @@ export const setupRemoteView = () => {
  * @param {ConfiguationOptions} options - client configuration parameters
  */
 export const setup = function (clientObject: Client, options: ConfiguationOptions): void {
+  Vobiz.log.info("Creating audio elements in DOM...");
   setupRemoteView();
   const audioConnectingElement = document.createElement('audio');
   audioConnectingElement.id = CONNECT_TONE_ELEMENT_ID;
