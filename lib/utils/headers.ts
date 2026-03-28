@@ -5,7 +5,7 @@
  */
 export const checkExtraHeaderKey = function (key: string): boolean {
   const keyUppercase = key.toUpperCase();
-  if (keyUppercase.startsWith('X-PH') || keyUppercase === 'X-VOBIZ-JWT') {
+  if (keyUppercase.startsWith('X-VH') || keyUppercase === 'X-VOBIZ-JWT') {
     // key only contain [A-Z], [a-z] and [0-9], max length = 24
     // 19 = 24 - 5
     const keyRegex = /^([a-z0-9A-Z-]){1,19}$/; // - added to Customer headers key as per close.io request

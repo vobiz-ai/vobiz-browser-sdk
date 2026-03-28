@@ -115,12 +115,12 @@ describe('vobizWebSdk', function () {
         done(new Error('bailing'));
       }
       Client2.call(primary_user, {
-        "X-Ph-Random": "true",
+        "X-VH-Random": "true",
       });
       Client1.on(
         "onIncomingCall",
         (callerName, extraHeaders2) => {
-          if (extraHeaders2 && extraHeaders2["X-Ph-Random"]) {
+          if (extraHeaders2 && extraHeaders2["X-VH-Random"]) {
             done();
           } else {
             done(new Error('incoming call with extra headers failed'));
@@ -169,7 +169,7 @@ describe('vobizWebSdk', function () {
         done(new Error('bailing'));
       }
       Client2.call(primary_user, {
-        'X-Ph-Random': true,
+        'X-VH-Random': true,
       });
       const answerCall = () => {
         const response1 = Client1.answer();

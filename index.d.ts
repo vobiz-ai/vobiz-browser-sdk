@@ -519,7 +519,7 @@ declare module 'vobiz-webrtc-sdk/client' {
                 * Start an outbound call.
                 * @param {String} phoneNumber - It can be a sip endpoint/number
                 * @param {Object} extraHeaders - (Optional) Custom headers which are passed in the INVITE.
-                * They should start with 'X-PH'
+                * They should start with 'X-VH'
                 */
             call: (phoneNumber: string, extraHeaders: ExtraHeaders) => boolean;
             /**
@@ -820,7 +820,7 @@ declare module 'vobiz-webrtc-sdk/managers/callSession' {
                 */
             speech_state: string;
             /**
-                * Custom headers which are passed in the INVITE. They should start with 'X-PH'
+                * Custom headers which are passed in the INVITE. They should start with 'X-VH'
                 * @private
                 */
             extraHeaders: ExtraHeaders;

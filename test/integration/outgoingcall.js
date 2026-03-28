@@ -119,7 +119,7 @@ describe("vobizWebSdk", function () {
         done(new Error("bailing"));
       }
       const extraHeaders = {};
-      extraHeaders["X-PH-conference"] = "true";
+      extraHeaders["X-VH-conference"] = "true";
       if (Client1.isLoggedIn) {
         Client1.call(secondary_user, extraHeaders);
       } else {
@@ -332,22 +332,22 @@ describe("vobizWebSdk", function () {
 
       Client1.hangup();
       Client1.call(secondary_user, {
-        'X-PH-vobizHeaders': '1',
+        'X-VH-vobizHeaders': '1',
       });
       Client1.call(secondary_user, {
-        'X-PH-vobizHeaders': '2',
+        'X-VH-vobizHeaders': '2',
       });
       Client1.call(secondary_user, {
-        'X-PH-vobizHeaders': '3',
+        'X-VH-vobizHeaders': '3',
       });
       Client1.call(secondary_user, {
-        'X-PH-vobizHeaders': '4',
+        'X-VH-vobizHeaders': '4',
       });
       Client1.call(secondary_user, {
-        'X-PH-vobizHeaders': '5',
+        'X-VH-vobizHeaders': '5',
       });
       waitUntilOutgoingCall(events.onCalling, () => {
-        if (Client1._currentSession.extraHeaders && Client1._currentSession.extraHeaders['X-PH-vobizHeaders'] === '1' && Client1._currentSession.dest === secondary_user) {
+        if (Client1._currentSession.extraHeaders && Client1._currentSession.extraHeaders['X-VH-vobizHeaders'] === '1' && Client1._currentSession.dest === secondary_user) {
           done();
         }
       }, 1000);
@@ -367,22 +367,22 @@ describe("vobizWebSdk", function () {
       Client1.hangup();
       waitUntilOutgoingCall(events.onCallTerminated, () => {
         Client1.call('user1', {
-          'X-PH-vobizHeaders': '1',
+          'X-VH-vobizHeaders': '1',
         });
         Client1.call('user2', {
-          'X-PH-vobizHeaders': '2',
+          'X-VH-vobizHeaders': '2',
         });
         Client1.call('user3', {
-          'X-PH-vobizHeaders': '3',
+          'X-VH-vobizHeaders': '3',
         });
         Client1.call('user4', {
-          'X-PH-vobizHeaders': '4',
+          'X-VH-vobizHeaders': '4',
         });
         Client1.call('user5', {
-          'X-PH-vobizHeaders': '5',
+          'X-VH-vobizHeaders': '5',
         });
         waitUntilOutgoingCall(events.onCalling, () => {
-          if (Client1._currentSession.extraHeaders && Client1._currentSession.extraHeaders['X-PH-vobizHeaders'] === '1' && Client1._currentSession.dest === 'user1') {
+          if (Client1._currentSession.extraHeaders && Client1._currentSession.extraHeaders['X-VH-vobizHeaders'] === '1' && Client1._currentSession.dest === 'user1') {
             done();
           }
         }, 50);

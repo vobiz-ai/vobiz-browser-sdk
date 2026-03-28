@@ -162,7 +162,7 @@ describe("vobizWebSdk JWT", function () {
         done(new Error("bailing"));
       }
       const extraHeaders = {};
-      extraHeaders["X-PH-conference"] = "true";
+      extraHeaders["X-VH-conference"] = "true";
       extraHeaders['X-VOBIZ-JWT'] = vobiz_jwt;
       if (Client1.isLoggedIn) {
         Client1.call(secondary_user, extraHeaders);
@@ -401,7 +401,7 @@ describe("vobizWebSdk JWT", function () {
         done(new Error("bailing"));
       }
       const extraHeaders = {};
-      extraHeaders["X-PH-conference"] = "true";
+      extraHeaders["X-VH-conference"] = "true";
       extraHeaders['X-VOBIZ-JWT'] = vobiz_jwt_without_outbound_access;
 
       if (Client1.isLoggedIn) {

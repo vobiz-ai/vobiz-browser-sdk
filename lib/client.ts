@@ -633,7 +633,7 @@ export class Client extends EventEmitter {
    * Start an outbound call.
    * @param {String} phoneNumber - It can be a sip endpoint/number
    * @param {Object} extraHeaders - (Optional) Custom headers which are passed in the INVITE.
-   * They should start with 'X-PH'
+   * They should start with 'X-VH'
    */
   public call = (
     phoneNumber: string,

@@ -156,7 +156,7 @@ describe('vobizWebSdk', function () {
       Client1.login(primary_user, primary_pass);
       Client1.on('onLogin', () => {
         const extraHeaders = {};
-        extraHeaders['X-PH-conference'] = 'true';
+        extraHeaders['X-VH-conference'] = 'true';
         Client1.on('onMediaConnected', () => {
           waitUntilEmitter(true, done, 1000);
         });

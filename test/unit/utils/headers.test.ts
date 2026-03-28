@@ -7,8 +7,8 @@ describe('Headers', () => {
   beforeAll(() => {
     requestHeaders = {
       'X-CallUUID': 'fb85a852-e7be-11ea-b940-5b5a84a8b39b',
-      'X-PH-value1': 'unit',
-      'X-pH-value2': 'mock',
+      'X-VH-value1': 'unit',
+      'X-vH-value2': 'mock',
     };
     incomingRequest = {
       getHeader: (headerKey) => {
@@ -20,7 +20,7 @@ describe('Headers', () => {
   });
 
   it('should pass when key is correct', () => {
-    expect(checkExtraHeaderKey('X-PH-value')).toBeTruthy();
+    expect(checkExtraHeaderKey('X-VH-value')).toBeTruthy();
   });
 
   it('should fail when key is incorrect', () => {
@@ -37,8 +37,8 @@ describe('Headers', () => {
 
   it('should extract extra headers from incoming request', () => {
     const extraHeaders = {
-      'X-PH-value1': 'unit',
-      'X-pH-value2': 'mock',
+      'X-VH-value1': 'unit',
+      'X-vH-value2': 'mock',
     };
     expect(receiveExtraHeader(incomingRequest, requestHeaders)).toStrictEqual(extraHeaders);
   });

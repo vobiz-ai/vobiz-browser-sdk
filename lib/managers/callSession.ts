@@ -176,7 +176,7 @@ export class CallSession {
   speech_state: string;
 
   /**
-   * Custom headers which are passed in the INVITE. They should start with 'X-PH'
+   * Custom headers which are passed in the INVITE. They should start with 'X-VH'
    * @private
    */
   extraHeaders: ExtraHeaders;

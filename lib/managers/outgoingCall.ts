@@ -434,9 +434,9 @@ const newInfo = (evt: SessionNewInfoEvent): void => {
 };
 
 /**
- * Remove headers which are not having `X-PH` prefix.
+ * Remove headers which are not having `X-VH` prefix.
  * @param {ExtraHeaders} extraHeaders - Custom headers which are passed in the INVITE.
- * They should start with 'X-PH'
+ * They should start with 'X-VH'
  * @returns Cleaned extra headers
  */
 const getCleanedHeaders = (extraHeaders: ExtraHeaders = {}): string[] => {
@@ -463,7 +463,7 @@ const getCleanedHeaders = (extraHeaders: ExtraHeaders = {}): string[] => {
 /**
  * Prepare outgoing call options.
  * @param {ExtraHeaders} extraHeaders - Custom headers which are passed in the INVITE.
- * They should start with 'X-PH'
+ * They should start with 'X-VH'
  * @returns Outgoing call answer options
  */
 const getOptions = function (extraHeaders: ExtraHeaders, mediaStream: MediaStream | null): any {
@@ -564,7 +564,7 @@ const makingCall = (opts: SessionAnswerOptions, destinationUri: string): void =>
  * Perform outgoing call.
  * @param {Client} clientObject - client reference
  * @param {ExtraHeaders} extraHeaders - Custom headers which are passed in the INVITE.
- * They should start with 'X-PH'
+ * They should start with 'X-VH'
  * @param {String} phoneNumber  - it can be a sip endpoint/number
  */
 export const makeCall = (
