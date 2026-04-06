@@ -21,7 +21,6 @@ export const DEFAULT_DTMFOPTIONS = {
   sendDtmfType: ['INBAND', 'OUTBAND'],
 };
 // webrtc settings
-export const NUMBER_OF_SIMULTANEOUS_INCOMING_CALLS_ALLOWED = 50;
 export const REGISTER_EXPIRES_SECONDS = 120;
 export const SESSION_TIMERS_EXPIRES = 300;
 export const WS_RECOVERY_MAX_INTERVAL = 20;

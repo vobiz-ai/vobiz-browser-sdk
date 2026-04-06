@@ -590,13 +590,14 @@ class Account {
         }
       });
     }
-    if (
-      ((this.cs._currentSession || this.cs.incomingInvites.size)
-        && !this.cs.options.allowMultipleIncomingCalls)
-      || this.cs.incomingInvites.size
-      >= C.NUMBER_OF_SIMULTANEOUS_INCOMING_CALLS_ALLOWED
-    ) {
-      Vobiz.log.debug(`${C.LOGCAT.CALL} | Already on call, Sending busy call due to existing call, invite-size: ${this.cs.incomingInvites.size} }`);
+    // Block new INVITEs only if:
+    // - allowMultipleIncomingCalls is false AND there is already an active or ringing call
+    // When allowMultipleIncomingCalls is true, ALL incoming calls are queued — no upper limit
+    const hasActiveCall = !!this.cs._currentSession;
+    const hasRingingCall = this.cs.incomingInvites.size > 0;
+
+    if (!this.cs.options.allowMultipleIncomingCalls && (hasActiveCall || hasRingingCall)) {
+      Vobiz.log.debug(`${C.LOGCAT.CALL} | Already on call, sending 486 Busy — allowMultipleIncomingCalls=false, invite-size: ${this.cs.incomingInvites.size}`);
       this.cs.loggerUtil.setSipCallID("");
       const opts = {
         status_code: 486,

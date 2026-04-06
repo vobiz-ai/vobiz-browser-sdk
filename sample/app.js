@@ -4,7 +4,8 @@
 
 let vobiz = null;
 let isMuted = false;
-let pendingCallUUID = null; // stores UUID of ringing incoming call
+// Map of callUUID → { callerId, displayName } for all ringing incoming calls
+const ringingCalls = new Map();
 
 // ===== SIP Inspector =====
 function sipLog(direction, message) {
@@ -155,6 +156,7 @@ function doLogin() {
             enableTracking: true,
             closeProtection: false,
             maxAverageBitrate: 48000,
+            allowMultipleIncomingCalls: true,
         });
 
         // Register event handlers
@@ -265,17 +267,19 @@ function doLogin() {
 
         vobiz.client.on('onIncomingCall', (callerId, extraHeaders, callInfo, callerName) => {
             const displayName = callerName || callerId;
-            pendingCallUUID = callInfo?.callUUID || null;
-            log(`📲 Incoming call from: <strong>${displayName}</strong> (${callerId})`, 'event');
-            setStatus('Incoming Call', 'in-call');
-            showIncomingUI(displayName);
+            const uuid = callInfo?.callUUID || null;
+            if (uuid) ringingCalls.set(uuid, { callerId, displayName });
+            log(`📲 Incoming call from: <strong>${displayName}</strong> (${callerId}) — queue: ${ringingCalls.size}`, 'event');
+            setStatus(`Incoming Call (${ringingCalls.size})`, 'in-call');
+            renderIncomingCallsUI();
         });
 
         vobiz.client.on('onIncomingCallCanceled', (callInfo) => {
-            log(`📴 Incoming call cancelled by caller (${callInfo?.callUUID || ''})`, 'warning');
-            setStatus('Registered', 'online');
-            pendingCallUUID = null;
-            hideIncomingUI();
+            const uuid = callInfo?.callUUID || '';
+            ringingCalls.delete(uuid);
+            log(`📴 Incoming call cancelled (${uuid.substring(0,8)}...) — queue: ${ringingCalls.size}`, 'warning');
+            if (ringingCalls.size === 0) setStatus('Registered', 'online');
+            renderIncomingCallsUI();
         });
 
         vobiz.client.on('onMediaPermission', (granted) => {
@@ -387,22 +391,33 @@ function doCall() {
 }
 
 function doAnswer() {
-    if (vobiz) {
-        vobiz.client.answer(pendingCallUUID || '');
-        log(`Answering call... (${pendingCallUUID || 'last incoming'})`, 'success');
-        pendingCallUUID = null;
-        hideIncomingUI();
-        showInCallUI();
-    }
+    // Legacy — answer the first ringing call
+    const firstUUID = ringingCalls.keys().next().value;
+    if (firstUUID) answerCall(firstUUID);
+}
+
+function answerCall(uuid) {
+    if (!vobiz) return;
+    log(`✅ Answering call ${uuid.substring(0,8)}...`, 'success');
+    // letring = keep other ringing calls alive
+    vobiz.client.answer(uuid, 'letring');
+    ringingCalls.delete(uuid);
+    renderIncomingCallsUI();
+    showInCallUI();
 }
 
 function doReject() {
-    if (vobiz) {
-        vobiz.client.reject(pendingCallUUID || '');
-        log('Call rejected', 'warning');
-        pendingCallUUID = null;
-        hideIncomingUI();
-    }
+    // Legacy — reject the first ringing call
+    const firstUUID = ringingCalls.keys().next().value;
+    if (firstUUID) rejectCall(firstUUID);
+}
+
+function rejectCall(uuid) {
+    if (!vobiz) return;
+    log(`❌ Rejected call ${uuid.substring(0,8)}`, 'warning');
+    vobiz.client.reject(uuid);
+    ringingCalls.delete(uuid);
+    renderIncomingCallsUI();
 }
 
 function doHangup() {
@@ -446,33 +461,97 @@ function toggleMute() {
 // ===== UI Helpers =====
 function showInCallUI() {
     document.getElementById('callBtn').style.display = 'none';
-    document.getElementById('answerBtn').style.display = 'none';
     document.getElementById('hangupBtn').style.display = 'flex';
     document.getElementById('mediaControls').style.display = 'flex';
 }
 
 function hideCallUI() {
     document.getElementById('callBtn').style.display = 'flex';
-    document.getElementById('answerBtn').style.display = 'none';
     document.getElementById('hangupBtn').style.display = 'none';
-    document.getElementById('rejectBtn').style.display = 'none';
     document.getElementById('mediaControls').style.display = 'none';
     isMuted = false;
     const muteBtn = document.getElementById('muteBtn');
-    muteBtn.classList.remove('active');
-    muteBtn.querySelector('span').textContent = 'Mute';
+    if (muteBtn) {
+        muteBtn.classList.remove('active');
+        muteBtn.querySelector('span').textContent = 'Mute';
+    }
 }
 
-function showIncomingUI(callerName) {
-    document.getElementById('answerBtn').style.display = 'flex';
-    document.getElementById('rejectBtn').style.display = 'flex';
-    document.getElementById('callBtn').style.display = 'none';
+/**
+ * Render the incoming calls queue panel.
+ * Each ringing call gets its own row with Answer + Reject buttons.
+ */
+function renderIncomingCallsUI() {
+    const panel = document.getElementById('incomingQueuePanel');
+    const list = document.getElementById('incomingCallsList');
+    const countEl = document.getElementById('queueCount');
+    if (!panel || !list) return;
+
+    if (ringingCalls.size === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    panel.style.display = 'block';
+    if (countEl) countEl.textContent = ringingCalls.size;
+
+    list.innerHTML = '';
+    let index = 1;
+    ringingCalls.forEach(({ callerId, displayName }, uuid) => {
+        const row = document.createElement('div');
+        row.id = `call-row-${uuid}`;
+        row.style.cssText = [
+            'display:flex',
+            'align-items:center',
+            'gap:10px',
+            'background:#f0fdf4',
+            'border:1.5px solid #86efac',
+            'border-radius:10px',
+            'padding:10px 14px',
+            'animation:pulse 1s infinite alternate',
+        ].join(';');
+
+        row.innerHTML = `
+            <div style="width:32px;height:32px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">
+                📲
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;font-weight:700;color:#166534;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    ${displayName || callerId}
+                </div>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px;">
+                    Call #${index} &nbsp;·&nbsp; ${uuid.substring(0, 8)}...
+                </div>
+            </div>
+            <button
+                onclick="answerCall('${uuid}')"
+                style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                ✅ Answer
+            </button>
+            <button
+                onclick="rejectCall('${uuid}')"
+                style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                ❌ Reject
+            </button>
+        `;
+        list.appendChild(row);
+        index++;
+    });
 }
 
-function hideIncomingUI() {
-    document.getElementById('answerBtn').style.display = 'none';
-    document.getElementById('rejectBtn').style.display = 'none';
-    document.getElementById('callBtn').style.display = 'flex';
+function showIncomingUI() { renderIncomingCallsUI(); }
+function hideIncomingUI() { renderIncomingCallsUI(); }
+
+function rejectAllCalls() {
+    if (!vobiz) return;
+    ringingCalls.forEach((_, uuid) => {
+        vobiz.client.reject(uuid);
+    });
+    const count = ringingCalls.size;
+    ringingCalls.clear();
+    renderIncomingCallsUI();
+    log(`❌ Rejected all ${count} incoming calls`, 'warning');
+    setStatus('Registered', 'online');
 }
 
 // ===== Init =====
