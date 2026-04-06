@@ -1,0 +1,24 @@
+# ─── Dev / build config ──────────────────────────────────────
+webpack.config.js
+tsconfig.json
+.eslintrc.json
+env.js
+prepare-deploy.ps1
+
+# ─── Internal server / demo ──────────────────────────────────
+answer_url.js
+sample/
+deploy/
+
+# ─── Internal AWS / infra config ─────────────────────────────
+bucket_policy.json
+cf_config.json
+
+# ─── Dev artifacts ───────────────────────────────────────────
+nul
+build_error.log
+coverage/
+package-lock.json
+
+# ─── Tests ───────────────────────────────────────────────────
+test/
