@@ -4,12 +4,32 @@
 //   ../../vobiz-jssip
 
 declare module 'vobiz-webrtc-sdk' {
-    import { Client, ConfiguationOptions } from 'vobiz-webrtc-sdk/client';
+    import { Client, ConfiguationOptions, ExtraHeaders } from 'vobiz-webrtc-sdk/client';
+    import { CallSession, CallInfo, CallSessionOptions, SignallingInfo, MediaConnectionInformation } from 'vobiz-webrtc-sdk/managers/callSession';
+    /** All event names emitted by the Vobiz SDK client */
+    export const VobizEvents: {
+        readonly ON_LOGIN: "onLogin";
+        readonly ON_LOGIN_FAILED: "onLoginFailed";
+        readonly ON_LOGOUT: "onLogout";
+        readonly ON_INCOMING_CALL: "onIncomingCall";
+        readonly ON_INCOMING_CALL_CANCELED: "onIncomingCallCanceled";
+        readonly ON_INCOMING_CALL_IGNORED: "onIncomingCallIgnored";
+        readonly ON_CALL_ANSWERED: "onCallAnswered";
+        readonly ON_CALL_TERMINATED: "onCallTerminated";
+        readonly ON_CALL_FAILED: "onCallFailed";
+        readonly ON_MEDIA_CONNECTED: "onMediaConnected";
+        readonly ON_MEDIA_PERMISSION: "onMediaPermission";
+        readonly ON_CALL_CONNECTED: "onCallConnected";
+        readonly REMOTE_AUDIO_STATUS: "remoteAudioStatus";
+        readonly ON_DTMF_RECEIVED: "onDtmfReceived";
+        readonly ON_PERMISSION_DENIED: "onPermissionDenied";
+    };
     class Vobiz {
         client: Client;
         constructor(options: ConfiguationOptions);
     }
     export default Vobiz;
+    export type { Client, ConfiguationOptions, ExtraHeaders, CallSession, CallInfo, CallSessionOptions, SignallingInfo, MediaConnectionInformation, };
 }
 
 declare module 'vobiz-webrtc-sdk/client' {
@@ -658,46 +678,6 @@ declare module 'vobiz-webrtc-sdk/client' {
     }
 }
 
-declare module 'vobiz-webrtc-sdk/logger' {
-    import { Client } from 'vobiz-webrtc-sdk/client';
-    import { LoggerUtil } from 'vobiz-webrtc-sdk/utils/loggerUtil';
-    export type AvailableLogMethods = 'INFO' | 'DEBUG' | 'WARN' | 'ERROR' | 'ALL' | 'OFF' | 'ALL-PLAIN';
-    export type AvailableFlagValues = 'ALL' | 'NONE' | 'REMOTEONLY' | 'LOCALONLY';
-    export interface DtmfOptions {
-            sendDtmfType: string[];
-    }
-    interface LoggerOptions {
-            enableDate?: boolean;
-            loggingName?: 'VobizSDK';
-            logMethod?: AvailableLogMethods;
-    }
-    /**
-        * Create a new logger.
-        */
-    class VobizLogger {
-            constructor(options?: LoggerOptions);
-            info: (...rest: any[]) => void;
-            debug: (...rest: any[]) => void;
-            warn: (...rest: any[]) => void;
-            error: (...rest: any[]) => void;
-            setLevel: (method: AvailableLogMethods) => string;
-            level: () => string;
-            consolelogs: () => string[];
-            /**
-                * Enable sip logs if log level is ALL.
-                * @param {AvailableLogMethods} debugLevel - passed by user while initializing client
-                */
-            enableSipLogs: (debugLevel: AvailableLogMethods) => void;
-            setLoggerUtil(loggerUtil: LoggerUtil): void;
-            /**
-            * Send logs to Vobiz.
-            */
-            send: (client: Client) => void;
-    }
-    export const Logger: VobizLogger;
-    export {};
-}
-
 declare module 'vobiz-webrtc-sdk/managers/callSession' {
     import { RTCSession, SessionIceCandidateEvent, SessionFailedEvent, SessionEndedEvent } from 'vobiz-jssip';
     import * as C from 'vobiz-webrtc-sdk/constants';
@@ -989,6 +969,46 @@ declare module 'vobiz-webrtc-sdk/managers/callSession' {
                 */
             constructor(options: CallSessionOptions);
     }
+}
+
+declare module 'vobiz-webrtc-sdk/logger' {
+    import { Client } from 'vobiz-webrtc-sdk/client';
+    import { LoggerUtil } from 'vobiz-webrtc-sdk/utils/loggerUtil';
+    export type AvailableLogMethods = 'INFO' | 'DEBUG' | 'WARN' | 'ERROR' | 'ALL' | 'OFF' | 'ALL-PLAIN';
+    export type AvailableFlagValues = 'ALL' | 'NONE' | 'REMOTEONLY' | 'LOCALONLY';
+    export interface DtmfOptions {
+            sendDtmfType: string[];
+    }
+    interface LoggerOptions {
+            enableDate?: boolean;
+            loggingName?: 'VobizSDK';
+            logMethod?: AvailableLogMethods;
+    }
+    /**
+        * Create a new logger.
+        */
+    class VobizLogger {
+            constructor(options?: LoggerOptions);
+            info: (...rest: any[]) => void;
+            debug: (...rest: any[]) => void;
+            warn: (...rest: any[]) => void;
+            error: (...rest: any[]) => void;
+            setLevel: (method: AvailableLogMethods) => string;
+            level: () => string;
+            consolelogs: () => string[];
+            /**
+                * Enable sip logs if log level is ALL.
+                * @param {AvailableLogMethods} debugLevel - passed by user while initializing client
+                */
+            enableSipLogs: (debugLevel: AvailableLogMethods) => void;
+            setLoggerUtil(loggerUtil: LoggerUtil): void;
+            /**
+            * Send logs to Vobiz.
+            */
+            send: (client: Client) => void;
+    }
+    export const Logger: VobizLogger;
+    export {};
 }
 
 declare module 'vobiz-webrtc-sdk/stats/ws' {

@@ -570,6 +570,17 @@ class Account {
       this.cs.callUUID = null;
       this.cs.callDirection = null;
     }
+    // Also clear _currentSession if the JsSIP session itself has ended
+    if (
+      this.cs._currentSession
+      && this.cs._currentSession.session.isEnded()
+    ) {
+      Vobiz.log.warn(`${C.LOGCAT.CALL} | Previous call session is ended but not cleared — clearing now`);
+      this.cs._currentSession = null;
+      this.cs.callSession = null;
+      this.cs.callUUID = null;
+      this.cs.callDirection = null;
+    }
     if (this.cs.incomingInvites.size) {
       Vobiz.log.debug(`${C.LOGCAT.CALL} | Remove the incoming call from map if it is failed but not removed properly, invite-size: ${this.cs.incomingInvites?.size ?? "none"}`);
       this.cs.incomingInvites.forEach((invite) => {

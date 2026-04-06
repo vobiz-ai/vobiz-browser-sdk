@@ -11,7 +11,7 @@ import * as documentUtil from './media/document';
 import validateOptions from './utils/options';
 import * as nonRTPStats from './stats/nonRTPStats';
 import * as device from './utils/device';
-// import * as oneWayAudio from './utils/oneWayAudio';
+import * as oneWayAudio from './utils/oneWayAudio';
 import Account from './managers/account';
 import * as IncomingCall from './managers/incomingCall';
 import * as OutgoingCall from './managers/outgoingCall';
@@ -1258,6 +1258,10 @@ export class Client extends EventEmitter {
     //   Vobiz.log.error(`${C.LOGCAT.CALL} | On call failed`, reason);
     //   this.emit('onCallFailed', reason);
     // };
+    const onCallFailed = (reason: string) => {
+      Vobiz.log.error(`${C.LOGCAT.CALL} | On call failed`, reason);
+      this.emit('onCallFailed', reason);
+    };
     const readyForCall = () => {
       if (this.isAccessToken) extraHeaders['X-VOBIZ-JWT'] = `${this.accessToken}`;
 
@@ -1265,26 +1269,25 @@ export class Client extends EventEmitter {
       return OutgoingCall.makeCall(this, extraHeaders, phoneNumber);
     };
     // Handle One Way Audio issues in chrome. check for every 1 hr
-    // if (
-    //   this.options.preDetectOwa
-    //   && this.browserDetails.browser === 'chrome'
-    //   && (new Date().getTime() - (this.owaLastDetect.time as any) > this.owaDetectTime
-    //     || this.owaLastDetect.isOneWay)
-    // ) {
-
-    //   oneWayAudio.detectOWA((res, err) => {
-    //     oneWayAudio.owaCallback.call(
-    //       this,
-    //       res,
-    //       err,
-    //       onCallFailed,
-    //       readyForCall,
-    //     );
-    //   });
-    // } else {
-    // Browsers other than chrome go to call ready mode
-    readyForCall();
-    // }
+    if (
+      this.options.preDetectOwa
+      && this.browserDetails.browser === 'chrome'
+      && (new Date().getTime() - (this.owaLastDetect.time as any) > this.owaDetectTime
+        || this.owaLastDetect.isOneWay)
+    ) {
+      oneWayAudio.detectOWA((res, err) => {
+        oneWayAudio.owaCallback.call(
+          this,
+          res,
+          err,
+          onCallFailed,
+          readyForCall,
+        );
+      });
+    } else {
+      // Browsers other than chrome, or when preDetectOwa is disabled, go directly to call ready
+      readyForCall();
+    }
     return true;
   };
 
@@ -1296,40 +1299,40 @@ export class Client extends EventEmitter {
     if (incomingCall && isValid) {
       Vobiz.log.debug(`answer - ${incomingCall.callUUID}`);
       incomingCall.addConnectionStage(`answer()@${new Date().getTime()}`);
-      // const mediaError = (reason: string) => {
-      //   Vobiz.log.debug(`${C.LOGCAT.CALL} | rejecting call, Reason : ${reason}`);
-      //   this.reject(incomingCall.callUUID as string);
-      //   return true;
-      // };
-      // const readyForCall = () => {
-      //   IncomingCall.answerIncomingCall(
-      //     incomingCall,
-      //     actionOnOtherIncomingCalls,
-      //   );
-      // };
+      const mediaError = (reason: string) => {
+        Vobiz.log.debug(`${C.LOGCAT.CALL} | rejecting call, Reason : ${reason}`);
+        this.reject(incomingCall.callUUID as string);
+        return true;
+      };
+      const readyForCall = () => {
+        IncomingCall.answerIncomingCall(
+          incomingCall,
+          actionOnOtherIncomingCalls,
+        );
+      };
       // Handle One Way Audio issues in chrome. check for every 1 hr
-      // if (
-      //   this.options.preDetectOwa
-      //   && this.browserDetails.browser === 'chrome'
-      //   && (new Date().getTime() - (this.owaLastDetect.time as any) > this.owaDetectTime
-      //     || this.owaLastDetect.isOneWay)
-      // ) {
-      //   oneWayAudio.detectOWA((res, err) => {
-      //     oneWayAudio.owaCallback.call(
-      //       this,
-      //       res,
-      //       err,
-      //       mediaError,
-      //       readyForCall,
-      //     );
-      //   });
-      // } else {
-      // Browsers other than chrome go to call ready mode
-      IncomingCall.answerIncomingCall(
-        incomingCall,
-        actionOnOtherIncomingCalls,
-      );
-      // }
+      if (
+        this.options.preDetectOwa
+        && this.browserDetails.browser === 'chrome'
+        && (new Date().getTime() - (this.owaLastDetect.time as any) > this.owaDetectTime
+          || this.owaLastDetect.isOneWay)
+      ) {
+        oneWayAudio.detectOWA((res, err) => {
+          oneWayAudio.owaCallback.call(
+            this,
+            res,
+            err,
+            mediaError,
+            readyForCall,
+          );
+        });
+      } else {
+        // Browsers other than chrome, or when preDetectOwa is disabled, go directly to answer
+        IncomingCall.answerIncomingCall(
+          incomingCall,
+          actionOnOtherIncomingCalls,
+        );
+      }
     } else {
       Vobiz.log.error(`${C.LOGCAT.LOGIN} | Incoming call answer() failed : no incoming call`);
       return false;
@@ -1740,7 +1743,7 @@ export class Client extends EventEmitter {
   private _getIncomingCalls = (): any[] => {
     const incomingCalls: any[] = [];
     this.incomingInvites.forEach((a) => {
-      incomingCalls.push(a.getCallInfo());
+      incomingCalls.push(a.getCallInfo("remote"));
     });
     return incomingCalls;
   };

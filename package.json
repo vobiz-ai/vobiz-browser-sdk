@@ -1,7 +1,7 @@
 {
   "name": "vobiz-webrtc-sdk",
   "title": "vobiz-webrtc-sdk",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "This library allows you to connect with Vobiz voice platform from browser",
   "main": "./dist/vobiz-webrtc-sdk.js",
   "types": "index.d.ts",

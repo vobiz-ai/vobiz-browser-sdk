@@ -44,8 +44,16 @@ import { resetPingPong } from '../utils/networkManager';
 
 const Vobiz = { log: Logger };
 let cs: Client;
-let isIncomingCallRinging = false;
+/** Tracks which callUUIDs are currently in ringing state (per-session, replaces the old single boolean flag) */
+const ringingCallUUIDs = new Set<string>();
 let isBrowserInBackground = false;
+
+/** Helper: returns true if any call is currently ringing */
+const isAnyCallRinging = (): boolean => ringingCallUUIDs.size > 0;
+/** Helper: mark a callUUID as ringing */
+const markRinging = (callUUID: string): void => { ringingCallUUIDs.add(callUUID); };
+/** Helper: unmark a callUUID from ringing */
+const unmarkRinging = (callUUID: string): void => { ringingCallUUIDs.delete(callUUID); };
 
 /**
  * Add Event Listener for 'visibilitychange' event
@@ -53,13 +61,13 @@ let isBrowserInBackground = false;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     isBrowserInBackground = false;
-    if (isIncomingCallRinging && mobileBrowserCheck()) {
+    if (isAnyCallRinging() && mobileBrowserCheck()) {
       Vobiz.log.debug(`${LOGCAT.CALL} | Move to foreground. playing audio`);
       playAudio(RINGTONE_ELEMENT_ID);
     }
   } else {
     isBrowserInBackground = true;
-    if (isIncomingCallRinging && mobileBrowserCheck()) {
+    if (isAnyCallRinging() && mobileBrowserCheck()) {
       Vobiz.log.debug(`${LOGCAT.CALL} | Move to background. stopping audio`);
       stopAudio(RINGTONE_ELEMENT_ID);
     }
@@ -148,7 +156,7 @@ const onProgress = (incomingCall: CallSession) => (): void => {
   const emitIncomingCall = () => {
     Vobiz.log.debug(`${LOGCAT.CALL} | Emitting onIncomingCall`);
     if (getCurrentIncomingCall(incomingCall.callUUID ?? "", cs)) {
-      isIncomingCallRinging = true;
+      markRinging(incomingCall.callUUID ?? "");
       cs.emit(
         'onIncomingCall',
         callerId,
@@ -173,40 +181,35 @@ const onProgress = (incomingCall: CallSession) => (): void => {
  * Triggered when sdp is prepared.
  * @param {SessionSdpEvent} evt - rtcsession sdp information
  */
+/**
+ * Triggered when sdp is prepared inside JsSIP answer() Promise chain.
+ * NOTE: codec preference filtering is intentionally NOT done here —
+ * it is applied earlier in answerIncomingCall() directly to request.body
+ * before answer() is called, because parseSDP() reads request.body
+ * synchronously before this event fires. Doing it here would be a
+ * second (double) application which corrupts the SDP.
+ */
 const onSDP = (evt: SessionSdpEvent): void => {
-  Vobiz.log.debug(`${LOGCAT.CALL} | incoming ${evt.originator} sdp prepared`);
-  isIncomingCallRinging = false;
-  // eslint-disable-next-line no-param-reassign
-  try {
-    // eslint-disable-next-line no-param-reassign
-    evt.sdp = checkCodecPreference(
-      cs.options.codecs as AvailableCodecs[],
-      evt.sdp as string,
-    );
-  } catch (err) {
-    Vobiz.log.debug('checkCodecPreference err - ', err);
-  }
+  Vobiz.log.debug(`${LOGCAT.CALL} | [onSDP] incoming ${evt.originator} sdp event fired`);
+  Vobiz.log.debug(`${LOGCAT.CALL} | [onSDP] SDP at event time:\n${evt.sdp}`);
 
+  // Apply maxAverageBitrate to Opus fmtp line
   evt.sdp = evt.sdp.replace(
     'useinbandfec=1',
     `useinbandfec=1;maxaveragebitrate=${cs.options.maxAverageBitrate}`,
   );
 
-  evt.sdp = evt.sdp.replace(
-    '0\r\r',
-    `0`,
-  );
-
-  // eslint-disable-next-line no-param-reassign
+  // Replace mDNS ICE candidates
   evt.sdp = replaceMdnsIceCandidates(evt.sdp);
-  Vobiz.log.debug('Incoming call SDP processing done');
+
+  Vobiz.log.debug(`${LOGCAT.CALL} | [onSDP] final SDP after maxBitrate+mDNS:\n${evt.sdp}`);
 };
 
 /**
  * Triggered when call is answered and (2XX received/sent).
  */
 const onAccepted = (incomingCall: CallSession) => (): void => {
-  isIncomingCallRinging = false;
+  unmarkRinging(incomingCall.callUUID ?? "");
   Vobiz.log.info(`${LOGCAT.CALL} | Incoming call Answered`);
   // reset ping pong service with on-call timeouts
   resetPingPong({
@@ -234,7 +237,7 @@ const onAccepted = (incomingCall: CallSession) => (): void => {
  */
 const onConfirmed = (incomingCall: CallSession) => (): void => {
   Vobiz.log.debug(`Incoming call confirmed - ${incomingCall.callUUID}`);
-  isIncomingCallRinging = false;
+  unmarkRinging(incomingCall.callUUID ?? "");
   incomingCall.onConfirmed(cs);
   const remoteStream: MediaStream = incomingCall.session.connection
     ? (incomingCall.session.connection as any).getRemoteStreams()[0] : null;
@@ -266,7 +269,7 @@ const handleFailureCauses = (evt: SessionFailedEvent, incomingCall: CallSession)
   if (evt.cause === JSSIP_C.causes.CANCELED) {
     incomingCall.setState(incomingCall.STATE.CANCELED);
     Vobiz.log.info(`${LOGCAT.CALL} | Incoming call Canceled - ${(reasonInfo.text === "" || reasonInfo.text === "none") ? evt.cause : reasonInfo.text}}`);
-    if (isIncomingCallRinging) {
+    if (ringingCallUUIDs.has(incomingCall.callUUID ?? "")) {
       cs.emit('onIncomingCallCanceled', incomingCall.getCallInfo(evt.originator, reasonInfo.protocol, reasonInfo.text, reasonInfo.cause));
     }
   } else {
@@ -276,7 +279,7 @@ const handleFailureCauses = (evt: SessionFailedEvent, incomingCall: CallSession)
     } else {
       incomingCall.setState(incomingCall.STATE.FAILED);
     }
-    if (isIncomingCallRinging) {
+    if (ringingCallUUIDs.has(incomingCall.callUUID ?? "")) {
       cs.emit('onCallFailed', evt.cause, incomingCall.getCallInfo(evt.originator, reasonInfo.protocol, reasonInfo.text, reasonInfo.cause));
     }
   }
@@ -289,7 +292,7 @@ const handleFailureCauses = (evt: SessionFailedEvent, incomingCall: CallSession)
 const onFailed = (incomingCall: CallSession) => (evt: SessionFailedEvent): void => {
   Vobiz.log.debug(`${LOGCAT.CALL} | Incoming call failed: ${evt.cause}`);
   handleFailureCauses(evt, incomingCall);
-  isIncomingCallRinging = false;
+  unmarkRinging(incomingCall.callUUID ?? "");
   incomingCall.onFailed(cs, evt);
 
   // //  logout if logged in by token and token get expired
@@ -310,7 +313,7 @@ const onFailed = (incomingCall: CallSession) => (evt: SessionFailedEvent): void 
  * @param {SessionEndedEvent} evt - rtcsession information
  */
 const onEnded = (incomingCall: CallSession) => (evt: SessionEndedEvent): void => {
-  isIncomingCallRinging = false;
+  unmarkRinging(incomingCall.callUUID ?? "");
   Vobiz.log.info(`${LOGCAT.CALL} | Incoming call - ${evt.cause} - ${evt.originator}`);
   Vobiz.log.debug(`Incoming call ended - ${incomingCall.callUUID}`);
   Vobiz.log.info(`${LOGCAT.CALL} | Incoming call Hangup`);
@@ -498,13 +501,13 @@ const handleOtherInvites = (
         typeof actionOnOtherIncomingCalls === 'string'
         && actionOnOtherIncomingCalls.toLowerCase() === 'ignore'
       ) {
-        isIncomingCallRinging = false;
+        unmarkRinging(invite.callUUID ?? "");
         cs.ignore(invite.callUUID);
       } else if (
         typeof actionOnOtherIncomingCalls === 'string'
         && actionOnOtherIncomingCalls.toLowerCase() === 'reject'
       ) {
-        isIncomingCallRinging = false;
+        unmarkRinging(invite.callUUID ?? "");
         cs.reject(invite.callUUID);
       } else if (
         typeof actionOnOtherIncomingCalls === 'string'
@@ -523,24 +526,64 @@ const handleOtherInvites = (
  * @returns Incoming call answer options
  */
 const getAnswerOptions = function (): Promise<SessionAnswerOptions> {
+  Vobiz.log.debug(`${LOGCAT.CALL} | [getAnswerOptions] ENTERED`);
   return new Promise((resolve) => {
     const opts: SessionAnswerOptions = {};
     opts.pcConfig = {
       iceServers: [{ urls: STUN_SERVERS }],
     };
-    if (cs.permOnClick) {
-      const audioConstraints = cs.options.audioConstraints || true;
-      opts.mediaConstraints = {
-        audio: audioConstraints,
-        video: false,
-      };
+    opts.sessionTimersExpires = SESSION_TIMERS_EXPIRES;
+
+    // Check if the pre-acquired stream is still alive (tracks not ended)
+    const existingStream: MediaStream | null = (window as any).localStream ?? null;
+    const isStreamAlive = existingStream
+      && existingStream.getTracks().length > 0
+      && existingStream.getTracks().every((t) => t.readyState === 'live');
+
+    Vobiz.log.debug(`${LOGCAT.CALL} | [getAnswerOptions] localStream exists=${!!existingStream} isAlive=${isStreamAlive} permOnClick=${cs.permOnClick}`);
+
+    if (!isStreamAlive) {
+      Vobiz.log.warn(`${LOGCAT.CALL} | [getAnswerOptions] localStream missing or tracks ended — clearing`);
+      (window as any).localStream = null;
     }
+
+    // Safety timeout — if noiseSuppression hangs, resolve anyway after 3s
+    const fallbackTimer = setTimeout(() => {
+      Vobiz.log.warn(`${LOGCAT.CALL} | [getAnswerOptions] noiseSuppression timed out after 3s — resolving with fallback`);
+      const fallbackStream = (window as any).localStream ?? null;
+      if (fallbackStream) {
+        opts.mediaStream = fallbackStream;
+      } else if (cs.permOnClick) {
+        opts.mediaConstraints = { audio: cs.options.audioConstraints || true, video: false };
+      }
+      Vobiz.log.debug(`${LOGCAT.CALL} | [getAnswerOptions] fallback resolve — mediaStream=${!!opts.mediaStream} mediaConstraints=${JSON.stringify(opts.mediaConstraints)}`);
+      resolve(opts);
+    }, 3000);
+
+    Vobiz.log.debug(`${LOGCAT.CALL} | [getAnswerOptions] calling startNoiseSuppression...`);
     cs.noiseSuppresion.startNoiseSuppression((window as any).localStream ?? null)
-      .then((mediaStream) => {
-        opts.mediaStream = mediaStream != null ? mediaStream : (window as any).localStream;
-        // opts.mediaStream = (window as any).localStream || null;
-        // opts.rtcConstraints =  null;
-        opts.sessionTimersExpires = SESSION_TIMERS_EXPIRES;
+      .then((mediaStream: MediaStream | null) => {
+        clearTimeout(fallbackTimer);
+        Vobiz.log.debug(`${LOGCAT.CALL} | [getAnswerOptions] startNoiseSuppression resolved — mediaStream=${!!mediaStream}`);
+        const stream = mediaStream ?? ((window as any).localStream ?? null);
+        if (stream) {
+          // Use the pre-acquired/processed stream — do NOT also set mediaConstraints
+          opts.mediaStream = stream;
+        } else if (cs.permOnClick) {
+          // No stream available — let JsSIP call getUserMedia via mediaConstraints
+          opts.mediaConstraints = { audio: cs.options.audioConstraints || true, video: false };
+        }
+        resolve(opts);
+      })
+      .catch((err: Error) => {
+        clearTimeout(fallbackTimer);
+        Vobiz.log.warn(`${LOGCAT.CALL} | getAnswerOptions: noiseSuppression error — ${err?.message}, answering without processed stream`);
+        const fallbackStream = (window as any).localStream ?? null;
+        if (fallbackStream) {
+          opts.mediaStream = fallbackStream;
+        } else if (cs.permOnClick) {
+          opts.mediaConstraints = { audio: cs.options.audioConstraints || true, video: false };
+        }
         resolve(opts);
       });
   });
@@ -555,7 +598,8 @@ export const answerIncomingCall = function (
   curIncomingCall: CallSession,
   actionOnOtherIncomingCalls: string,
 ): Promise<void> {
-  return new Promise(() => {
+  Vobiz.log.debug(`${LOGCAT.CALL} | [answerIncomingCall] ENTERED — callUUID=${curIncomingCall?.callUUID}`);
+  return new Promise((resolve, reject) => {
     handleOtherInvites(curIncomingCall, actionOnOtherIncomingCalls);
     cs.owaLastDetect.isOneWay = false;
     try {
@@ -570,19 +614,79 @@ export const answerIncomingCall = function (
       cs.loggerUtil.setSipCallID(cs._currentSession.sipCallID ?? "");
       cs.callSession = cs._currentSession.session;
       cs.callUUID = cs._currentSession.callUUID;
-      Vobiz.log.debug(`${LOGCAT.CALL} | CallUUID is ${cs.callUUID}`);
+      Vobiz.log.debug(`${LOGCAT.CALL} | [answerIncomingCall] calling getAnswerOptions()...`);
       cs.callDirection = cs._currentSession.direction;
       getAnswerOptions().then((options) => {
+        Vobiz.log.debug(`${LOGCAT.CALL} | [answerIncomingCall] getAnswerOptions resolved`);
+        Vobiz.log.debug(`${LOGCAT.CALL} | [answerIncomingCall] mediaStream=${!!options.mediaStream} mediaConstraints=${JSON.stringify(options.mediaConstraints)}`);
+
+        // ─── PRE-PROCESS request.body BEFORE calling session.answer() ────────
+        // CRITICAL: JsSIP's answer() calls request.parseSDP() SYNCHRONOUSLY
+        // before the 'sdp' event fires. If the raw SDP has orphaned payload
+        // types (codec on m= line but no a=rtpmap), Chrome's setRemoteDescription
+        // throws "Failed to parse codecs correctly". We must clean it here first.
+        // The onSDP event will also fire later (inside the Promise chain) and
+        // applies maxAverageBitrate and mDNS replacement — NOT codec filtering.
+        const session = curIncomingCall.session as any;
+        const requestObj = session?._request;
+        Vobiz.log.debug(`${LOGCAT.CALL} | [answerIncomingCall] _request exists=${!!requestObj} body length=${requestObj?.body?.length ?? 'n/a'}`);
+
+        if (requestObj?.body) {
+          try {
+            const originalSdp = requestObj.body as string;
+
+            // Step 1: fix double-CR
+            let cleanedSdp = originalSdp.replace(/t=0 0\r\r/g, 't=0 0\r');
+
+            // Step 2: apply codec preference (ONCE — removes orphaned payload types)
+            cleanedSdp = checkCodecPreference(
+              cs.options.codecs as AvailableCodecs[],
+              cleanedSdp,
+            );
+
+            // Step 3: warn if Vobiz sent plain RTP/AVP instead of WebRTC DTLS SDP
+            if (cleanedSdp.includes('RTP/AVP') && !cleanedSdp.includes('a=fingerprint')) {
+              Vobiz.log.error(`${LOGCAT.CALL} | [answerIncomingCall] ⚠️ Vobiz sent RTP/AVP SDP without DTLS fingerprint. Chrome WebRTC requires UDP/TLS/RTP/SAVPF with a=fingerprint. Check Vobiz endpoint WebRTC config.`);
+            }
+
+            Vobiz.log.debug(`${LOGCAT.CALL} | [answerIncomingCall] CLEANED request.body SDP:\n${cleanedSdp}`);
+
+            // Write back — parseSDP() and the sdp event will now see clean SDP
+            requestObj.body = cleanedSdp;
+            // Also reset the cached parsed SDP so parseSDP() re-parses the clean body
+            if (requestObj.sdp !== undefined) {
+              requestObj.sdp = null;
+            }
+
+            Vobiz.log.debug(`${LOGCAT.CALL} | [answerIncomingCall] request.body pre-processed successfully`);
+          } catch (err) {
+            Vobiz.log.error(`${LOGCAT.CALL} | [answerIncomingCall] SDP pre-processing failed: ${(err as Error)?.message}`);
+          }
+        } else {
+          Vobiz.log.warn(`${LOGCAT.CALL} | [answerIncomingCall] request.body is empty or _request not found — skipping pre-processing`);
+        }
+
+        Vobiz.log.debug(`${LOGCAT.CALL} | [answerIncomingCall] calling session.answer() for callUUID=${curIncomingCall.callUUID}`);
         curIncomingCall.session.answer(options);
+        if (cs.ringToneView && !cs.ringToneView.paused) {
+          stopAudio(RINGTONE_ELEMENT_ID);
+        }
+        resolve();
+      }).catch((err) => {
+        Vobiz.log.error(`${LOGCAT.CALL} | error getting answer options : `, err.message);
+        curIncomingCall.setState(curIncomingCall.STATE.CANCELED);
+        cs.emit('onIncomingCallCanceled', curIncomingCall.getCallInfo("local", "none", "call answer fail", LOCAL_ERROR_CODES['call answer fail']));
+        reject(err);
       });
     } catch (err) {
       Vobiz.log.error(`${LOGCAT.CALL} | error in answering incoming call : `, err.message);
       curIncomingCall.setState(curIncomingCall.STATE.CANCELED);
       Vobiz.log.info(`${LOGCAT.CALL} | Incoming call Canceled - ${err.message}`);
       cs.emit('onIncomingCallCanceled', curIncomingCall.getCallInfo("local", "none", "call answer fail", LOCAL_ERROR_CODES['call answer fail']));
-    }
-    if (cs.ringToneView && !cs.ringToneView.paused) {
-      stopAudio(RINGTONE_ELEMENT_ID);
+      if (cs.ringToneView && !cs.ringToneView.paused) {
+        stopAudio(RINGTONE_ELEMENT_ID);
+      }
+      reject(err);
     }
   });
 };
