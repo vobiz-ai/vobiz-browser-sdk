@@ -75,4 +75,4 @@ Validate these features before going to production:
 
 ### 4. Branding & Logs
 - [ ] **Logging**: Open DevTools Console. Ensure logs are tagged with `VobizSDK`.
-- [ ] **Clean Branding**: No references to "upstream" in log outputs or SDK errors.
+- [ ] **Clean Branding**: Logs, error strings and SIP headers mention only Vobiz; no upstream vendor names appear anywhere.
