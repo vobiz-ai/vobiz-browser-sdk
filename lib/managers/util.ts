@@ -592,6 +592,7 @@ export const hangupClearance = function (session: CallSession) {
     }
     removeCloseProtectionListeners.call(client);
     client.isCallMuted = false;
+    client.isCallOnHold = false;
     if (client._currentSession) return;
     if (client.storage) client.storage = null;
     stopLocalStream.call(client);

@@ -298,6 +298,11 @@ export declare class Client extends EventEmitter {
      */
     isMuteCalled: boolean;
     /**
+     * Describes whether the call is on hold (placed by this client) or not
+     * @private
+     */
+    isCallOnHold: boolean;
+    /**
      * All audio related information
      * @public
      */
@@ -545,6 +550,23 @@ export declare class Client extends EventEmitter {
      */
     unmute: () => boolean;
     /**
+     * Put the active call (Outgoing/Incoming) on hold.
+     * Sends a SIP re-INVITE with a=sendonly, so neither side hears the other.
+     * Emits 'onCallHold' once the far end accepts the re-INVITE.
+     * @returns {Boolean} true if the hold request was sent
+     */
+    hold: () => boolean;
+    /**
+     * Resume a call that was put on hold with hold().
+     * Emits 'onCallResume' once the far end accepts the re-INVITE.
+     * @returns {Boolean} true if the resume request was sent
+     */
+    unhold: () => boolean;
+    /**
+     * Whether the active call is currently on hold (put on hold by this client).
+     */
+    isOnHold: () => boolean;
+    /**
      * Configure the ringtone played when an incoming call starts ringing.
      * @param {Any} val - Can be media url or boolean value for enabling/disabling default ringtone
      */
@@ -659,6 +681,9 @@ export declare class Client extends EventEmitter {
     private _sendDtmf;
     private _mute;
     private _unmute;
+    private _toggleHold;
+    private _hold;
+    private _unhold;
     private _setRingTone;
     private _setRingToneBack;
     private _setConnectTone;

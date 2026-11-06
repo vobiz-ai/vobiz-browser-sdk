@@ -394,6 +394,12 @@ export class Client extends EventEmitter {
   isMuteCalled: boolean;
 
   /**
+   * Describes whether the call is on hold (placed by this client) or not
+   * @private
+   */
+  isCallOnHold: boolean;
+
+  /**
    * All audio related information
    * @public
    */
@@ -687,6 +693,26 @@ export class Client extends EventEmitter {
   public unmute = (): boolean => this._unmute();
 
   /**
+   * Put the active call (Outgoing/Incoming) on hold.
+   * Sends a SIP re-INVITE with a=sendonly, so neither side hears the other.
+   * Emits 'onCallHold' once the far end accepts the re-INVITE.
+   * @returns {Boolean} true if the hold request was sent
+   */
+  public hold = (): boolean => this._hold();
+
+  /**
+   * Resume a call that was put on hold with hold().
+   * Emits 'onCallResume' once the far end accepts the re-INVITE.
+   * @returns {Boolean} true if the resume request was sent
+   */
+  public unhold = (): boolean => this._unhold();
+
+  /**
+   * Whether the active call is currently on hold (put on hold by this client).
+   */
+  public isOnHold = (): boolean => this.isCallOnHold;
+
+  /**
    * Configure the ringtone played when an incoming call starts ringing.
    * @param {Any} val - Can be media url or boolean value for enabling/disabling default ringtone
    */
@@ -913,6 +939,7 @@ export class Client extends EventEmitter {
     this.rtp_enabled = false;
     this.statsioused = false;
     this.isCallMuted = false;
+    this.isCallOnHold = false;
     this.isLoginCalled = false;
     this.isLogoutCalled = false;
     this.networkChangeInterval = null;
@@ -1612,6 +1639,64 @@ export class Client extends EventEmitter {
     }
     return true;
   };
+
+  private _toggleHold = (action: 'hold' | 'unhold'): boolean => {
+    const method = `${action}()`;
+    const callSession = this._currentSession;
+    if (!callSession || !callSession.session) {
+      Vobiz.log.warn(`${C.LOGCAT.CALL} | No call session exists to ${action}`);
+      return false;
+    }
+    // vobiz-jssip's typings say hold()/unhold() return void and isOnHold() a boolean;
+    // at runtime they return a boolean and { local, remote }.
+    // NOTE: if the far end rejects the re-INVITE, JsSIP terminates the call ("Hold Failed").
+    const session = callSession.session as any;
+    if (!session.isEstablished()) {
+      Vobiz.log.warn(`${C.LOGCAT.CALL} | Call is not answered yet, cannot ${action}`);
+      return false;
+    }
+    const onHold = session.isOnHold().local;
+    if ((action === 'hold' && onHold) || (action === 'unhold' && !onHold)) {
+      Vobiz.log.debug(`${C.LOGCAT.CALL} | ${action} ignored, call is already in that state`);
+      return true;
+    }
+    Vobiz.log.debug(`${C.LOGCAT.CALL} | ${action} method is called - ${callSession.callUUID}`);
+    try {
+      const onDone = () => {
+        // the far end accepted the re-INVITE; ignore if the call changed meanwhile
+        if (this._currentSession !== callSession) return;
+        this.isCallOnHold = action === 'hold';
+        this.emit(action === 'hold' ? 'onCallHold' : 'onCallResume', callSession.getCallInfo('local'));
+      };
+      const sent = action === 'hold' ? session.hold({}, onDone) : session.unhold({}, onDone);
+      if (!sent) {
+        Vobiz.log.warn(`${C.LOGCAT.CALL} | ${action} could not be sent (another re-INVITE may be in progress)`);
+      }
+      return sent;
+    } catch (err) {
+      Vobiz.log.error(`${C.LOGCAT.CALL} | error in ${action} :`, err.message);
+      Vobiz.AppError?.call(this, {
+        name: err.name,
+        message: err.message,
+        method,
+      });
+      Vobiz.sendEvents?.call(
+        this,
+        {
+          msg: 'ERROR_EVENT',
+          name: err.name,
+          info: err.message,
+          method,
+        },
+        callSession,
+      );
+      return false;
+    }
+  };
+
+  private _hold = (): boolean => this._toggleHold('hold');
+
+  private _unhold = (): boolean => this._toggleHold('unhold');
 
   private _setRingTone = (val: string | boolean): boolean => {
     Vobiz.log.debug(`${C.LOGCAT.INIT}| setting ringtone`);
