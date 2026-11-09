@@ -694,15 +694,15 @@ export class Client extends EventEmitter {
 
   /**
    * Put the active call (Outgoing/Incoming) on hold.
-   * Sends a SIP re-INVITE with a=sendonly, so neither side hears the other.
-   * Emits 'onCallHold' once the far end accepts the re-INVITE.
+   * Sends a SIP UPDATE with a=sendonly, so neither side hears the other.
+   * Emits 'onCallHold' once the far end accepts the UPDATE.
    * @returns {Boolean} true if the hold request was sent
    */
   public hold = (): boolean => this._hold();
 
   /**
    * Resume a call that was put on hold with hold().
-   * Emits 'onCallResume' once the far end accepts the re-INVITE.
+   * Emits 'onCallResume' once the far end accepts the UPDATE.
    * @returns {Boolean} true if the resume request was sent
    */
   public unhold = (): boolean => this._unhold();
@@ -1649,7 +1649,10 @@ export class Client extends EventEmitter {
     }
     // vobiz-jssip's typings say hold()/unhold() return void and isOnHold() a boolean;
     // at runtime they return a boolean and { local, remote }.
-    // NOTE: if the far end rejects the re-INVITE, JsSIP terminates the call ("Hold Failed").
+    // Hold/resume is sent as a SIP UPDATE (useUpdate). vobiz-jssip's re-INVITE path is
+    // built for network reconnects: on a connected call it waits for a new ICE candidate
+    // that never arrives, so a re-INVITE hold is never sent. UPDATE uses the normal offer
+    // path. NOTE: if the far end rejects it, JsSIP terminates the call ("Hold Failed").
     const session = callSession.session as any;
     if (!session.isEstablished()) {
       Vobiz.log.warn(`${C.LOGCAT.CALL} | Call is not answered yet, cannot ${action}`);
@@ -1663,14 +1666,15 @@ export class Client extends EventEmitter {
     Vobiz.log.debug(`${C.LOGCAT.CALL} | ${action} method is called - ${callSession.callUUID}`);
     try {
       const onDone = () => {
-        // the far end accepted the re-INVITE; ignore if the call changed meanwhile
+        // the far end accepted the UPDATE; ignore if the call changed meanwhile
         if (this._currentSession !== callSession) return;
         this.isCallOnHold = action === 'hold';
         this.emit(action === 'hold' ? 'onCallHold' : 'onCallResume', callSession.getCallInfo('local'));
       };
-      const sent = action === 'hold' ? session.hold({}, onDone) : session.unhold({}, onDone);
+      const opts = { useUpdate: true };
+      const sent = action === 'hold' ? session.hold(opts, onDone) : session.unhold(opts, onDone);
       if (!sent) {
-        Vobiz.log.warn(`${C.LOGCAT.CALL} | ${action} could not be sent (another re-INVITE may be in progress)`);
+        Vobiz.log.warn(`${C.LOGCAT.CALL} | ${action} could not be sent (another UPDATE/re-INVITE may be in progress)`);
       }
       return sent;
     } catch (err) {
