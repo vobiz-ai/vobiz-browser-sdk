@@ -43,7 +43,7 @@ describe('Client hold/unhold', () => {
     expect(client.isOnHold()).toBe(false);
   });
 
-  it('sends hold and resume as SIP UPDATE and emits events once confirmed', () => {
+  it('sends hold and resume as a re-INVITE (not UPDATE) and emits events once confirmed', () => {
     const { session, state, calls } = makeFakeSession();
     const callInfo = { callUUID: 'abc' };
     client._currentSession = {
@@ -59,7 +59,7 @@ describe('Client hold/unhold', () => {
     expect(client.hold()).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0].method).toBe('hold');
-    expect(calls[0].opts).toEqual(expect.objectContaining({ useUpdate: true }));
+    expect(calls[0].opts.useUpdate).toBeFalsy();
     // nothing is emitted until the far end confirms
     expect(onHold).not.toHaveBeenCalled();
     expect(client.isOnHold()).toBe(false);
@@ -72,7 +72,7 @@ describe('Client hold/unhold', () => {
     expect(client.unhold()).toBe(true);
     expect(calls).toHaveLength(2);
     expect(calls[1].method).toBe('unhold');
-    expect(calls[1].opts).toEqual(expect.objectContaining({ useUpdate: true }));
+    expect(calls[1].opts.useUpdate).toBeFalsy();
     expect(onResume).not.toHaveBeenCalled();
 
     state.local = false;
