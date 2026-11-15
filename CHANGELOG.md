@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.7
+
+- Package metadata only, no code changes: new README, `homepage` points to the SDK documentation, clearer description. The source repository is now public.
+
 ## 1.0.6
 
 - `hold()` now also stops sending microphone audio. The media server applies hold only to the browser's leg, so the other party kept hearing the browser while on hold. The mic comes back on `onCallResume`, unless the call was muted with `mute()`; `unmute()` while on hold takes effect on resume.
