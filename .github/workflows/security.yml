@@ -14,6 +14,8 @@ permissions:
 jobs:
   codeql:
     name: CodeQL
+    # Code scanning needs GitHub Advanced Security on private repos; runs once the repo is public.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -36,7 +38,8 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    if: github.event_name == 'pull_request'
+    # Needs GitHub Advanced Security on private repos; runs once the repo is public.
+    if: github.event_name == 'pull_request' && !github.event.repository.private
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -54,10 +57,6 @@ jobs:
   audit:
     name: npm audit
     runs-on: ubuntu-latest
-    # Report-only for now: build tools (wasm-pack, null-loader, @types/*) are listed under
-    # dependencies, so they show up as runtime issues. Make this blocking once they move
-    # to devDependencies.
-    continue-on-error: true
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -68,11 +67,14 @@ jobs:
           node-version: 26
       - name: Audit runtime dependencies
         run: |
-                    npm audit --omit=dev --audit-level=high
+          # Report-only for now: build tools (wasm-pack, null-loader, @types/*) are listed
+          # under dependencies, so they show up as runtime issues. Make this blocking once
+          # they move to devDependencies.
+          npm audit --omit=dev --audit-level=high || echo "::warning title=npm audit::high/critical advisories in runtime dependencies (report-only)"
 
   scorecard:
     name: OpenSSF Scorecard
-    if: github.event_name == 'push' || github.event_name == 'schedule'
+    if: (github.event_name == 'push' || github.event_name == 'schedule') && !github.event.repository.private
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
