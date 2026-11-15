@@ -47,8 +47,7 @@ The repository includes a **Test Console** to verify SIP registration and calls.
     Navigate to: [http://127.0.0.1:8080/sample/index.html](http://127.0.0.1:8080/sample/index.html)
 
 3.  **Authentication Test**:
-    - **Username**: `testing04949394196792859672850`
-    - **Password**: `testing`
+    - Use the username and password of a SIP endpoint on your Vobiz account.
     - Click **"Connect & Register"**. Verify status turns **Green**.
 
 ---
