@@ -5,7 +5,9 @@ import { Client } from '../../lib/client';
 const makeFakeSession = () => {
   const state = { local: false, remote: false };
   const calls: { method: string; opts: any; done: () => void }[] = [];
+  const track = { kind: 'audio', enabled: true };
   const session = {
+    connection: { getSenders: () => [{ track }] },
     isEstablished: () => true,
     isOnHold: () => ({ ...state }),
     hold: (opts: any, done: () => void) => {
@@ -17,7 +19,7 @@ const makeFakeSession = () => {
       return true;
     },
   };
-  return { session, state, calls };
+  return { session, state, calls, track };
 };
 
 describe('Client hold/unhold', () => {
@@ -79,5 +81,43 @@ describe('Client hold/unhold', () => {
     calls[1].done();
     expect(onResume).toHaveBeenCalledWith(callInfo);
     expect(client.isOnHold()).toBe(false);
+  });
+
+  it('stops sending mic audio while on hold and restores it on resume', () => {
+    const { session, state, calls, track } = makeFakeSession();
+    client._currentSession = { session, callUUID: 'abc', getCallInfo: () => ({}) };
+
+    expect(client.hold()).toBe(true);
+    expect(track.enabled).toBe(false); // off as soon as hold is requested
+    state.local = true;
+    calls[0].done();
+
+    expect(client.unhold()).toBe(true);
+    expect(track.enabled).toBe(false); // stays off until the far end confirms the resume
+    state.local = false;
+    calls[1].done();
+    expect(track.enabled).toBe(true);
+  });
+
+  it('keeps the mic off after resume if the user muted the call', () => {
+    const { session, state, calls, track } = makeFakeSession();
+    client._currentSession = { session, callUUID: 'abc', getCallInfo: () => ({}) };
+    client.isCallMuted = true;
+
+    client.hold();
+    state.local = true;
+    calls[0].done();
+    client.unhold();
+    state.local = false;
+    calls[1].done();
+    expect(track.enabled).toBe(false);
+  });
+
+  it('restores the mic if the hold request could not be sent', () => {
+    const { session, track } = makeFakeSession();
+    session.hold = () => false;
+    client._currentSession = { session, callUUID: 'abc', getCallInfo: () => ({}) };
+    expect(client.hold()).toBe(false);
+    expect(track.enabled).toBe(true);
   });
 });
