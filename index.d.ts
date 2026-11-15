@@ -585,14 +585,15 @@ declare module 'vobiz-webrtc-sdk/client' {
             unmute: () => boolean;
             /**
                 * Put the active call (Outgoing/Incoming) on hold.
-                * Sends a SIP re-INVITE with a=sendonly, so neither side hears the other.
-                * Emits 'onCallHold' once the far end accepts the re-INVITE.
+                * Sends a SIP re-INVITE with a=sendonly and stops sending microphone audio, so neither
+                * side hears the other. Emits 'onCallHold' once the far end accepts the re-INVITE.
                 * @returns {Boolean} true if the hold request was sent
                 */
             hold: () => boolean;
             /**
                 * Resume a call that was put on hold with hold().
-                * Emits 'onCallResume' once the far end accepts the re-INVITE.
+                * Emits 'onCallResume' once the far end accepts the re-INVITE; the microphone is turned
+                * back on unless the call was muted with mute().
                 * @returns {Boolean} true if the resume request was sent
                 */
             unhold: () => boolean;
