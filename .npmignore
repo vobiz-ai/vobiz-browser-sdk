@@ -9,6 +9,9 @@ prepare-deploy.ps1
 answer_url.js
 sample/
 deploy/
+start.md
+.github/
+CHANGELOG.md
 
 # ─── Internal AWS / infra config ─────────────────────────────
 bucket_policy.json
