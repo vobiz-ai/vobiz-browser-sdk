@@ -65,6 +65,11 @@ jobs:
         run: rm -f pack.out
       - name: No upstream vendor names or secrets in published files
         run: |
-          if grep -n -i -E 'plivo|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY' dist/*.js index.d.ts README.md package.json; then
+          # -o: print only the match (dist files are single minified lines).
+          # Key check is case-sensitive: processor.js embeds base64 WebAssembly.
+          FILES="dist/*.js index.d.ts README.md package.json"
+          if grep -o -n -i 'plivo' $FILES \
+             || grep -o -n -E '\bAKIA[0-9A-Z]{16}\b' $FILES \
+             || grep -o -n -E -- '-----BEGIN [A-Z ]*PRIVATE KEY' $FILES; then
             echo "found a forbidden string"; exit 1
           fi
