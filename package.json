@@ -3,6 +3,13 @@
   "title": "vobiz-webrtc-sdk",
   "version": "1.0.5",
   "description": "This library allows you to connect with Vobiz voice platform from browser",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vobiz-ai/vobiz-browser-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vobiz-ai/vobiz-browser-sdk/issues"
+  },
   "main": "./dist/vobiz-webrtc-sdk.js",
   "types": "index.d.ts",
   "scripts": {
@@ -37,9 +44,6 @@
   },
   "author": "Vobiz",
   "license": "Apache-2.0",
-  "bugs": {
-    "url": "https://github.com/devlume-in/vobiz-browser-sdk/issues"
-  },
   "homepage": "https://docs.vobiz.ai",
   "pre-commit": [
     "lint",
@@ -56,7 +60,7 @@
     "sdp-transform": "^2.14.0",
     "semver-parser": "^3.0.5",
     "uuid": "^8.3.0",
-    "vobiz-jssip": "^1.0.1",
+    "vobiz-jssip": "^1.0.2",
     "wasm-feature-detect": "^1.5.1",
     "wasm-pack": "^0.12.1",
     "webrtc-adapter": "^7.7.0"
