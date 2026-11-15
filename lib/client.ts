@@ -694,15 +694,16 @@ export class Client extends EventEmitter {
 
   /**
    * Put the active call (Outgoing/Incoming) on hold.
-   * Sends a SIP re-INVITE with a=sendonly, so neither side hears the other.
-   * Emits 'onCallHold' once the far end accepts the re-INVITE.
+   * Sends a SIP re-INVITE with a=sendonly and stops sending microphone audio, so neither
+   * side hears the other. Emits 'onCallHold' once the far end accepts the re-INVITE.
    * @returns {Boolean} true if the hold request was sent
    */
   public hold = (): boolean => this._hold();
 
   /**
    * Resume a call that was put on hold with hold().
-   * Emits 'onCallResume' once the far end accepts the re-INVITE.
+   * Emits 'onCallResume' once the far end accepts the re-INVITE; the microphone is turned
+   * back on unless the call was muted with mute().
    * @returns {Boolean} true if the resume request was sent
    */
   public unhold = (): boolean => this._unhold();
@@ -1607,6 +1608,10 @@ export class Client extends EventEmitter {
         this.isMuteCalled = false;
         audioUtil.unmute.call(this);
         this.isCallMuted = false;
+        // still on hold: the mic comes back on resume
+        const sess = this._currentSession.session as any;
+        const heldNow = this.isCallOnHold || (sess && sess.isOnHold && sess.isOnHold().local);
+        if (heldNow) this._setLocalAudioEnabled(sess, false);
         if (this.callStats) {
           this.callStats.sendFabricEvent(
             this._currentSession.session.connection,
@@ -1670,12 +1675,19 @@ export class Client extends EventEmitter {
         // the far end accepted the re-INVITE; ignore if the call changed meanwhile
         if (this._currentSession !== callSession) return;
         this.isCallOnHold = action === 'hold';
+        // resume sending audio, unless the user muted the call themselves
+        if (action === 'unhold' && !this.isCallMuted) this._setLocalAudioEnabled(session, true);
         this.emit(action === 'hold' ? 'onCallHold' : 'onCallResume', callSession.getCallInfo('local'));
       };
+      // The media server only applies hold to this leg (it answers recvonly and keeps
+      // sending to the other party), so the other party would keep hearing our mic.
+      // Stop sending audio while on hold.
+      if (action === 'hold') this._setLocalAudioEnabled(session, false);
       const opts = {};
       const sent = action === 'hold' ? session.hold(opts, onDone) : session.unhold(opts, onDone);
       if (!sent) {
         Vobiz.log.warn(`${C.LOGCAT.CALL} | ${action} could not be sent (another UPDATE/re-INVITE may be in progress)`);
+        if (action === 'hold' && !this.isCallMuted) this._setLocalAudioEnabled(session, true);
       }
       return sent;
     } catch (err) {
@@ -1696,6 +1708,20 @@ export class Client extends EventEmitter {
         callSession,
       );
       return false;
+    }
+  };
+
+  // Enable or disable the local audio track(s) sent on this call, without changing
+  // the user's mute state (isCallMuted).
+  private _setLocalAudioEnabled = (session: any, enabled: boolean): void => {
+    try {
+      const pc = session && session.connection;
+      if (!pc || typeof pc.getSenders !== 'function') return;
+      pc.getSenders().forEach((sender: any) => {
+        if (sender.track && sender.track.kind === 'audio') sender.track.enabled = enabled;
+      });
+    } catch (err) {
+      Vobiz.log.warn(`${C.LOGCAT.CALL} | could not ${enabled ? 'enable' : 'disable'} local audio: ${err.message}`);
     }
   };
 
