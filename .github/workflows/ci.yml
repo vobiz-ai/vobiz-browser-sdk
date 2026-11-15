@@ -50,15 +50,19 @@ jobs:
           USERAGENT_OS: linux
       - name: Package contents
         run: |
-          npm pack --dry-run --ignore-scripts --json > pack.json
+          # npm pack runs the prepare build and prints its logs before the JSON
+          npm pack --dry-run --json > pack.out
           node -e '
-            const files = require("./pack.json")[0].files.map((f) => f.path);
+            const out = require("fs").readFileSync("pack.out", "utf8");
+            const files = JSON.parse(out.slice(out.lastIndexOf("\n[\n") + 1))[0].files.map((f) => f.path);
             const need = ["dist/vobiz-webrtc-sdk.js", "dist/vobiz-webrtc-sdk.min.js", "dist/processor.js", "index.d.ts", "package.json"];
             const missing = need.filter((f) => !files.includes(f));
             const bad = files.filter((f) => /(^|\/)(\.env|answer_url\.js|sample\/|test\/)/.test(f));
             console.log(files.length + " files");
             if (missing.length || bad.length) { console.error({ missing, bad }); process.exit(1); }
           '
+      - name: Remove pack output
+        run: rm -f pack.out
       - name: No upstream vendor names or secrets in published files
         run: |
           if grep -n -i -E 'plivo|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY' dist/*.js index.d.ts README.md package.json; then

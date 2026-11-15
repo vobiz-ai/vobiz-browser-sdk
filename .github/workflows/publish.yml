@@ -73,8 +73,7 @@ jobs:
       - name: npm 12 (trusted publishing needs >= 11.5.1)
         run: npm install -g npm@^12.2.2 && npm --version
       - name: Pack (dry run)
-        run: npm pack --dry-run --ignore-scripts
+        run: npm pack --dry-run
       - name: Publish
         if: github.event_name == 'release' || inputs.dry_run == false
-        # --ignore-scripts: dist is already built above; skip the prepare rebuild
-        run: npm publish --access public --ignore-scripts
+        run: npm publish --access public
